@@ -1,0 +1,87 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #000;
+  overflow: hidden;
+  font-family: 'Courier New', monospace;
+}
+
+canvas { display: block; }
+
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.corner {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-color: rgba(0, 180, 255, 0.45);
+  border-style: solid;
+}
+
+.corner.tl { top: 18px; left: 18px; border-width: 2px 0 0 2px; }
+.corner.tr { top: 18px; right: 18px; border-width: 2px 2px 0 0; }
+.corner.bl { bottom: 18px; left: 18px; border-width: 0 0 2px 2px; }
+.corner.br { bottom: 18px; right: 18px; border-width: 0 2px 2px 0; }
+
+#status {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(0, 200, 255, 0.7);
+  font-size: 11px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+#status .dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00c8ff;
+  margin-right: 8px;
+  animation: blink 1.8s ease-in-out infinite;
+  vertical-align: middle;
+}
+
+#telemetry {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(120, 220, 255, 0.85);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-align: center;
+  min-width: 460px;
+  text-shadow: 0 0 10px rgba(0, 180, 255, 0.5);
+}
+
+#transcript {
+  position: absolute;
+  bottom: 52px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(900px, 88vw);
+  color: rgba(180, 240, 255, 0.88);
+  font-size: 13px;
+  letter-spacing: 0.6px;
+  text-align: center;
+  opacity: 0.92;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 12px rgba(0, 120, 255, 0.35);
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}

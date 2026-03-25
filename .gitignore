@@ -1,0 +1,83 @@
+# ── Python ─────────────────────────────────────
+
+**pycache**/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+
+venv/
+.env/
+.env.*
+.venv/
+
+# Distribution / packaging
+
+build/
+dist/
+*.egg-info/
+
+# Logs
+
+*.log
+
+# OS files
+
+.DS_Store
+Thumbs.db
+
+# IDE / Editor
+
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Environment Variables ──────────────────────
+
+.env
+
+# ── Models / Large Files ──────────────────────
+
+models/
+*.pt
+*.bin
+*.onnx
+*.ckpt
+
+# If you want to keep structure:
+
+# !models/.gitkeep
+
+# ── Database (if added later) ──────────────────
+
+*.db
+*.sqlite3
+
+# ── Frontend (if you add build tools later) ───
+
+node_modules/
+dist/
+.cache/
+
+# ── Temporary / Runtime ───────────────────────
+
+tmp/
+temp/
+*.tmp
+
+# ── PyWebView / Local config ──────────────────
+
+*.json
+
+# ── System metrics / debug dumps ──────────────
+
+*.dump
+*.pid
+
+# ── Secrets (IMPORTANT) ───────────────────────
+
+secrets/
+credentials/
+*.key
+*.pem

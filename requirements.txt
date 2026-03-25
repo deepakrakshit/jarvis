@@ -1,0 +1,6 @@
+requests
+RealtimeTTS
+piper-tts
+pywebview
+psutil
+pathvalidate

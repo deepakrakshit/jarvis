@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>J.A.R.V.I.S - Core Engine</title>
+  <link rel="stylesheet" href="./assets/styles.css">
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="hud">
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+    <div id="telemetry">MODE: LISTENING | MIC: 0.00 | PITCH: 0.00 | CPU: 0% | RAM: 0%</div>
+    <div id="transcript">VOICE LINK INITIALIZING...</div>
+    <div id="status"><span class="dot"></span>core online</div>
+  </div>
+
+  <script type="module" src="./assets/main.js"></script>
+</body>
+</html>
