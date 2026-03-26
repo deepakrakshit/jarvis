@@ -4,3 +4,4 @@ piper-tts
 pywebview
 psutil
 pathvalidate
+speedtest-cli

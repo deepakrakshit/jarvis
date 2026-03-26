@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from difflib import SequenceMatcher
 import json
 import queue
@@ -33,10 +34,11 @@ def start_static_server(web_root: str) -> tuple[ThreadingHTTPServer, int]:
 
 class JarvisBridge:
     VOICE_BLOCK_MODES = {"processing", "speaking"}
-    VOICE_POST_SPEAKING_COOLDOWN_SECONDS = 1.2
-    ASSISTANT_ECHO_WINDOW_SECONDS = 7.0
+    VOICE_POST_SPEAKING_COOLDOWN_SECONDS = 2.2
+    ASSISTANT_ECHO_WINDOW_SECONDS = 9.0
     ASSISTANT_ECHO_MIN_CHARS = 12
-    ASSISTANT_ECHO_SIMILARITY_THRESHOLD = 0.86
+    ASSISTANT_ECHO_SIMILARITY_THRESHOLD = 0.78
+    ASSISTANT_ECHO_SHORT_TEXT_BLOCK_SECONDS = 2.8
     MAX_ASSISTANT_TEXT_CHARS = 2200
 
     def __init__(
@@ -60,6 +62,13 @@ class JarvisBridge:
         self._assistant_text_norm = ""
         self._assistant_text_ts = 0.0
         self._assistant_echo_guard_until = 0.0
+        self._boot_time = time.time()
+
+        if psutil is not None:
+            try:
+                self._boot_time = float(psutil.boot_time())
+            except Exception:
+                self._boot_time = time.time()
 
         self.runtime.set_event_callbacks(
             on_mode_change=self._on_mode_change,
@@ -213,14 +222,32 @@ class JarvisBridge:
             return {"accepted": False}
 
         echo_window_active = now < assistant_echo_guard_until or (now - assistant_text_ts) < 2.0
+        if now < assistant_echo_guard_until and len(clean_norm.split()) <= 3:
+            return {"accepted": False}
+
+        if clean_norm.startswith("system status snapshot"):
+            return {"accepted": False}
+
         if echo_window_active and self._looks_like_assistant_echo(clean_norm, assistant_norm):
             return {"accepted": False}
+
+        if (now - assistant_text_ts) < self.ASSISTANT_ECHO_SHORT_TEXT_BLOCK_SECONDS and assistant_norm:
+            tail = assistant_norm[-max(160, len(clean_norm) + 40) :]
+            sim = SequenceMatcher(None, clean_norm, tail).ratio()
+            if sim >= 0.72:
+                return {"accepted": False}
 
         if clean.lower() == self._last_voice.lower() and (now - self._last_voice_ts) < 1.5:
             return {"accepted": False}
 
         self._last_voice = clean
         self._last_voice_ts = now
+
+        if self._stream_to_stdout:
+            try:
+                print(f"you > {clean}")
+            except Exception:
+                pass
 
         self._call_js("window.jarvis.onUserTranscript", clean)
         self._input_queue.put(clean)
@@ -235,11 +262,7 @@ class JarvisBridge:
 
             try:
                 if utterance == "__greet__":
-                    self.runtime.ask_groq(
-                        "Deliver a concise system-ready greeting to the authorized user in one line.",
-                        persist_user=False,
-                        stream_to_stdout=self._stream_to_stdout,
-                    )
+                    self.runtime.greet(stream_to_stdout=self._stream_to_stdout)
                 else:
                     self.runtime.ask_groq(utterance, stream_to_stdout=self._stream_to_stdout)
             except Exception:
@@ -253,18 +276,23 @@ class JarvisBridge:
                 pass
 
         while not self._stop.is_set():
-            cpu = 0.0
-            ram = 0.0
+            cpu: float | None = None
+            ram: float | None = None
 
             if psutil is not None:
                 try:
                     cpu = max(0.0, min(1.0, psutil.cpu_percent(interval=None) / 100.0))
                     ram = max(0.0, min(1.0, psutil.virtual_memory().percent / 100.0))
                 except Exception:
-                    cpu = 0.0
-                    ram = 0.0
+                    cpu = None
+                    ram = None
 
-            self._call_js("window.jarvis.setSystemMetrics", cpu, ram)
+            now = datetime.datetime.now().astimezone()
+            current_time = now.strftime("%H:%M:%S")
+            current_date = now.strftime("%Y-%m-%d")
+            uptime_seconds = max(0, int(time.time() - self._boot_time))
+
+            self._call_js("window.jarvis.setSystemMetrics", cpu, ram, current_time, current_date, uptime_seconds)
             time.sleep(0.9)
 
     def shutdown(self, *, close_runtime: bool = True) -> None:

@@ -24,6 +24,9 @@ const P = {
   apiLoad: 0.0,
   cpuLoad: 0.0,
   ramLoad: 0.0,
+  systemTime: '--:--:--',
+  systemDate: '----/--/--',
+  uptimeSeconds: 0,
   responseEnergy: 0.0,
 };
 
@@ -296,8 +299,17 @@ let _recognizer = null;
 let _recognitionRunning = false;
 let _reconnectRecognition = true;
 let _sttCooldownUntil = 0;
+let _sttRearmRequired = false;
+let _sttRearmState = 'armed';
+let _sttSilenceSince = 0;
+let _sttSpeechSince = 0;
+let _lastSubmittedNorm = '';
+let _lastSubmittedTs = 0;
 
-const STT_RESUME_DELAY_MS = 1100;
+const STT_RESUME_DELAY_MS = 1800;
+const STT_REARM_SILENCE_MS = 180;
+const STT_REARM_SPEECH_MS = 120;
+const STT_DUP_WINDOW_MS = 3500;
 
 const statusEl = document.getElementById('status');
 const telemetryEl = document.getElementById('telemetry');
@@ -311,16 +323,38 @@ const MODE_STYLE = {
 
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
+function normalizeTranscript(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function formatUptime(seconds) {
+  const s = Math.max(0, Number(seconds || 0) | 0);
+  const days = Math.floor(s / 86400);
+  const hours = Math.floor((s % 86400) / 3600);
+  const minutes = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+
+  if (days > 0) {
+    return `${days}d ${hours}h ${minutes}m ${secs}s`;
+  }
+  return `${hours}h ${minutes}m ${secs}s`;
+}
+
 function updateStatusHUD() {
   const modeCfg = MODE_STYLE[P.mode] || MODE_STYLE.listening;
   statusEl.innerHTML = `<span class="dot" style="background:${modeCfg.dot};animation:blink ${modeCfg.blink} ease-in-out infinite"></span>${modeCfg.label}`;
 
   const mic = P.micVolume.toFixed(2);
   const pitch = P.micPitchNorm.toFixed(2);
-  const cpu = Math.round(P.cpuLoad * 100);
-  const ram = Math.round(P.ramLoad * 100);
+  const cpu = Number.isFinite(P.cpuLoad) ? `${Math.round(P.cpuLoad * 100)}%` : 'N/A';
+  const ram = Number.isFinite(P.ramLoad) ? `${Math.round(P.ramLoad * 100)}%` : 'N/A';
   const api = P.apiActive ? 'ON' : 'OFF';
-  telemetryEl.textContent = `MODE: ${modeCfg.label} | MIC: ${mic} | PITCH: ${pitch} | API: ${api} | CPU: ${cpu}% | RAM: ${ram}%`;
+  const up = formatUptime(P.uptimeSeconds);
+  telemetryEl.textContent = `MODE: ${modeCfg.label} | MIC: ${mic} | PITCH: ${pitch} | API: ${api} | CPU: ${cpu} | RAM: ${ram} | DATE: ${P.systemDate} | TIME: ${P.systemTime} | UP: ${up}`;
 }
 
 function setMode(mode) {
@@ -329,6 +363,10 @@ function setMode(mode) {
   if (mode === 'speaking') {
     P.isTalking = true;
     _sttCooldownUntil = Date.now() + STT_RESUME_DELAY_MS;
+    _sttRearmRequired = true;
+    _sttRearmState = 'wait_silence';
+    _sttSilenceSince = 0;
+    _sttSpeechSince = 0;
   } else if (mode === 'listening') {
     P.isTalking = false;
   }
@@ -345,6 +383,37 @@ function updateFromMic(volume, pitchNorm, speaking) {
   P.micPitchNorm = clamp(pitchNorm, 0, 1);
   if (speaking) {
     P.speechPulse = clamp(P.speechPulse + 0.08, 0, 1);
+  }
+
+  if (_sttRearmRequired && P.mode === 'listening') {
+    const now = Date.now();
+    if (_sttRearmState === 'wait_silence') {
+      if (speaking) {
+        _sttSilenceSince = 0;
+      } else {
+        if (!_sttSilenceSince) {
+          _sttSilenceSince = now;
+        }
+        if ((now - _sttSilenceSince) >= STT_REARM_SILENCE_MS) {
+          _sttRearmState = 'wait_speech';
+          _sttSpeechSince = 0;
+        }
+      }
+    } else if (_sttRearmState === 'wait_speech') {
+      if (speaking) {
+        if (!_sttSpeechSince) {
+          _sttSpeechSince = now;
+        }
+        if ((now - _sttSpeechSince) >= STT_REARM_SPEECH_MS) {
+          _sttRearmRequired = false;
+          _sttRearmState = 'armed';
+          _sttSilenceSince = 0;
+          _sttSpeechSince = 0;
+        }
+      } else {
+        _sttSpeechSince = 0;
+      }
+    }
   }
 }
 
@@ -423,9 +492,20 @@ function submitVoiceToPython(text) {
   if (!text || !text.trim()) return;
   if (P.mode !== 'listening') return;
   if (Date.now() < _sttCooldownUntil) return;
+  if (_sttRearmRequired) return;
 
   const clean = text.trim();
   if (clean.length < 2) return;
+
+  const now = Date.now();
+  const cleanNorm = normalizeTranscript(clean);
+  if (cleanNorm.length < 2) return;
+  if (cleanNorm === _lastSubmittedNorm && (now - _lastSubmittedTs) < STT_DUP_WINDOW_MS) {
+    return;
+  }
+  _lastSubmittedNorm = cleanNorm;
+  _lastSubmittedTs = now;
+
   setTranscript(`YOU: ${clean}`);
 
   if (window.pywebview && window.pywebview.api && window.pywebview.api.submit_voice) {
@@ -495,9 +575,14 @@ window.jarvis = {
     P.apiLoad = active ? 1.0 : 0.0;
     updateStatusHUD();
   },
-  setSystemMetrics(cpu, ram) {
-    P.cpuLoad = clamp(Number(cpu || 0), 0, 1);
-    P.ramLoad = clamp(Number(ram || 0), 0, 1);
+  setSystemMetrics(cpu, ram, clockTime, dateValue, uptimeSeconds) {
+    const cpuNum = Number(cpu);
+    const ramNum = Number(ram);
+    P.cpuLoad = Number.isFinite(cpuNum) ? clamp(cpuNum, 0, 1) : Number.NaN;
+    P.ramLoad = Number.isFinite(ramNum) ? clamp(ramNum, 0, 1) : Number.NaN;
+    P.systemTime = (clockTime && String(clockTime).trim()) || '--:--:--';
+    P.systemDate = (dateValue && String(dateValue).trim()) || '----/--/--';
+    P.uptimeSeconds = Math.max(0, Number(uptimeSeconds || 0) | 0);
     updateStatusHUD();
   },
   onAssistantDelta(delta) {
@@ -544,7 +629,9 @@ function animate() {
   P.speechPulse *= 0.92;
 
   const micEnergy = P.micVolume;
-  const metricsLoad = (P.cpuLoad + P.ramLoad) * 0.5;
+  const cpuLoad = Number.isFinite(P.cpuLoad) ? P.cpuLoad : 0;
+  const ramLoad = Number.isFinite(P.ramLoad) ? P.ramLoad : 0;
+  const metricsLoad = (cpuLoad + ramLoad) * 0.5;
   const talkingEnergy = Math.max(P.responseEnergy, P.speechPulse, micEnergy * 0.8);
 
   const adaptiveAmp = clamp(

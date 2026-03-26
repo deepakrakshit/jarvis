@@ -43,6 +43,7 @@ def run_cli(
             if clean.lower() in {"exit", "quit"}:
                 break
 
+            print(f"you > {clean}")
             active_runtime.ask_groq(clean)
     finally:
         if close_runtime and owns_runtime:

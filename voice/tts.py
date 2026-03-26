@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import time
 import wave
 from typing import Any, Callable
 
@@ -35,6 +36,7 @@ class RealtimePiperTTS:
         self._turn_lock = threading.Lock()
         self._tts_lock = threading.Lock()
         self._turn_id = 0
+        self._pending_chunks = 0
         self._stream_started = False
 
         self.engine, self.stream = self._init_tts()
@@ -245,6 +247,7 @@ class RealtimePiperTTS:
     def interrupt(self) -> int:
         with self._turn_lock:
             self._turn_id += 1
+            self._pending_chunks = 0
             active_turn = self._turn_id
 
         self._clear_speech_queue()
@@ -274,6 +277,8 @@ class RealtimePiperTTS:
         )
         cleaned = re.sub(r"^\s*[-+]\s+", "", cleaned)
         cleaned = re.sub(r"^\s*\d+\.\s+", "", cleaned)
+        cleaned = re.sub(r"\s*([,;:.!?])\s*", r"\1 ", cleaned)
+        cleaned = re.sub(r"([,;:.!?]){2,}", r"\1", cleaned)
         cleaned = re.sub(r"\s+", " ", cleaned)
         return cleaned.strip()
 
@@ -284,7 +289,37 @@ class RealtimePiperTTS:
         if not text:
             return
 
+        with self._turn_lock:
+            if turn_id != self._turn_id:
+                return
+            self._pending_chunks += 1
+
         self._speech_queue.put((turn_id, text))
+
+    def wait_for_turn_completion(self, turn_id: int, timeout_s: float = 25.0) -> None:
+        start = time.time()
+        while True:
+            with self._turn_lock:
+                active_turn = self._turn_id
+                pending_chunks = self._pending_chunks
+
+            if turn_id != active_turn:
+                return
+
+            is_playing = False
+            with self._tts_lock:
+                try:
+                    is_playing = self._stream_started and self.stream.is_playing()
+                except Exception:
+                    is_playing = False
+
+            if pending_chunks <= 0 and not is_playing:
+                return
+
+            if timeout_s > 0 and (time.time() - start) >= timeout_s:
+                return
+
+            time.sleep(0.02)
 
     def _tts_worker(self) -> None:
         while not self._stop_worker.is_set():
@@ -298,25 +333,29 @@ class RealtimePiperTTS:
 
             try:
                 with self._tts_lock:
-                    min_sentence_length = max(6, min(self.config.tts_min_sentence_length, 12))
-                    min_first_fragment_length = max(4, min(self.config.tts_min_first_fragment_length, 10))
-                    force_first_fragment_after_words = max(6, min(self.config.tts_force_first_fragment_after_words, 12))
+                    min_sentence_length = max(10, min(self.config.tts_min_sentence_length, 15))
+                    min_first_fragment_length = max(8, min(self.config.tts_min_first_fragment_length, 11))
+                    force_first_fragment_after_words = max(9, min(self.config.tts_force_first_fragment_after_words, 13))
 
                     self.stream.feed(text + " ")
                     if not self.stream.is_playing():
                         self._stream_started = True
                         self.stream.play_async(
                             fast_sentence_fragment=True,
-                            fast_sentence_fragment_allsentences=True,
-                            buffer_threshold_seconds=0.0,
+                            fast_sentence_fragment_allsentences=False,
+                            buffer_threshold_seconds=0.04,
                             minimum_sentence_length=min_sentence_length,
                             minimum_first_fragment_length=min_first_fragment_length,
-                            sentence_fragment_delimiters=".?!;:,\n",
+                            sentence_fragment_delimiters=".?!;:\n",
                             force_first_fragment_after_words=force_first_fragment_after_words,
                             language="en",
                         )
             except Exception:
                 continue
+            finally:
+                with self._turn_lock:
+                    if turn_id == self._turn_id and self._pending_chunks > 0:
+                        self._pending_chunks -= 1
 
     def close(self) -> None:
         self.interrupt()
