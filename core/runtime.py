@@ -12,6 +12,11 @@ from voice.tts import RealtimePiperTTS
 
 
 class JarvisRuntime:
+    EARLY_CHUNK_MIN_CHARS = 14
+    EARLY_CHUNK_TARGET_CHARS = 28
+    EARLY_CHUNK_MAX_CHARS = 32
+    EARLY_CHUNK_MAX_WAIT_SECONDS = 0.45
+
     def __init__(self, config: AppConfig | None = None) -> None:
         self.config = config or AppConfig.from_env(".env")
         self.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -72,10 +77,12 @@ class JarvisRuntime:
         if not stripped:
             return False
 
+        flush_chars = max(18, min(self.config.tts_chunk_chars, self.EARLY_CHUNK_MAX_CHARS))
+
         if stripped[-1] in ".?!":
             return True
 
-        if len(stripped) >= self.config.tts_chunk_chars:
+        if len(stripped) >= flush_chars:
             return True
 
         return False
@@ -104,6 +111,28 @@ class JarvisRuntime:
         rest = buffer[cutoff:]
 
         if len(chunk) < 8:
+            return "", buffer
+
+        return chunk, rest
+
+    def _early_speech_chunk(self, buffer: str) -> tuple[str, str]:
+        stripped = buffer.strip()
+        if len(stripped) < self.EARLY_CHUNK_MIN_CHARS:
+            return "", buffer
+
+        target = max(self.EARLY_CHUNK_TARGET_CHARS, min(self.config.tts_chunk_chars, self.EARLY_CHUNK_MAX_CHARS))
+        target = min(target, len(buffer))
+        cutoff = target
+
+        while cutoff > 0 and buffer[cutoff - 1] not in (" ", "\n", ",", ".", "?", "!", ";", ":"):
+            cutoff -= 1
+
+        if cutoff <= 0:
+            cutoff = target
+
+        chunk = buffer[:cutoff].strip()
+        rest = buffer[cutoff:]
+        if len(chunk) < self.EARLY_CHUNK_MIN_CHARS:
             return "", buffer
 
         return chunk, rest
@@ -161,6 +190,7 @@ class JarvisRuntime:
         speak_buffer = ""
         first_voice_chunk = True
         queued_any_speech = False
+        last_chunk_queued_at = time.perf_counter()
 
         if stream_to_stdout:
             print(f"{WHITE}JARVIS:{RESET} ", end="", flush=True)
@@ -201,6 +231,17 @@ class JarvisRuntime:
                                 first_voice_chunk = False
                                 queued_any_speech = True
                                 self.tts.enqueue_text(chunk_to_speak, turn_id)
+                                last_chunk_queued_at = time.perf_counter()
+
+                            if speak_buffer.strip() and (time.perf_counter() - last_chunk_queued_at) >= self.EARLY_CHUNK_MAX_WAIT_SECONDS:
+                                early_chunk, speak_buffer = self._early_speech_chunk(speak_buffer)
+                                if early_chunk:
+                                    if first_voice_chunk and self.config.tts_first_chunk_delay > 0:
+                                        time.sleep(self.config.tts_first_chunk_delay)
+                                    first_voice_chunk = False
+                                    queued_any_speech = True
+                                    self.tts.enqueue_text(early_chunk, turn_id)
+                                    last_chunk_queued_at = time.perf_counter()
 
                     except Exception:
                         continue

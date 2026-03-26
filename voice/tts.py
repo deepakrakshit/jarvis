@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import queue
+import re
 import shutil
 import subprocess
 import tempfile
@@ -253,9 +254,33 @@ class RealtimePiperTTS:
 
         return active_turn
 
+    @staticmethod
+    def _prepare_for_tts(text: str) -> str:
+        cleaned = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+        cleaned = cleaned.replace("**", " ").replace("__", " ")
+        cleaned = cleaned.translate(
+            str.maketrans(
+                {
+                    "*": " ",
+                    "_": " ",
+                    "`": " ",
+                    "#": " ",
+                    "|": " ",
+                    "~": " ",
+                    "<": " ",
+                    ">": " ",
+                }
+            )
+        )
+        cleaned = re.sub(r"^\s*[-+]\s+", "", cleaned)
+        cleaned = re.sub(r"^\s*\d+\.\s+", "", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned)
+        return cleaned.strip()
+
     def enqueue_text(self, chunk: str, turn_id: int) -> None:
         text = " ".join(chunk.strip().split())
         text = text.strip('"')
+        text = self._prepare_for_tts(text)
         if not text:
             return
 
@@ -273,17 +298,21 @@ class RealtimePiperTTS:
 
             try:
                 with self._tts_lock:
+                    min_sentence_length = max(6, min(self.config.tts_min_sentence_length, 12))
+                    min_first_fragment_length = max(4, min(self.config.tts_min_first_fragment_length, 10))
+                    force_first_fragment_after_words = max(6, min(self.config.tts_force_first_fragment_after_words, 12))
+
                     self.stream.feed(text + " ")
                     if not self.stream.is_playing():
                         self._stream_started = True
                         self.stream.play_async(
-                            fast_sentence_fragment=False,
-                            fast_sentence_fragment_allsentences=False,
+                            fast_sentence_fragment=True,
+                            fast_sentence_fragment_allsentences=True,
                             buffer_threshold_seconds=0.0,
-                            minimum_sentence_length=self.config.tts_min_sentence_length,
-                            minimum_first_fragment_length=self.config.tts_min_first_fragment_length,
-                            sentence_fragment_delimiters=".?!;:\n",
-                            force_first_fragment_after_words=self.config.tts_force_first_fragment_after_words,
+                            minimum_sentence_length=min_sentence_length,
+                            minimum_first_fragment_length=min_first_fragment_length,
+                            sentence_fragment_delimiters=".?!;:,\n",
+                            force_first_fragment_after_words=force_first_fragment_after_words,
                             language="en",
                         )
             except Exception:

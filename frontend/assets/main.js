@@ -295,6 +295,9 @@ let _targetAmp = 0.0;
 let _recognizer = null;
 let _recognitionRunning = false;
 let _reconnectRecognition = true;
+let _sttCooldownUntil = 0;
+
+const STT_RESUME_DELAY_MS = 1100;
 
 const statusEl = document.getElementById('status');
 const telemetryEl = document.getElementById('telemetry');
@@ -325,9 +328,11 @@ function setMode(mode) {
   P.mode = mode;
   if (mode === 'speaking') {
     P.isTalking = true;
+    _sttCooldownUntil = Date.now() + STT_RESUME_DELAY_MS;
   } else if (mode === 'listening') {
     P.isTalking = false;
   }
+
   updateStatusHUD();
 }
 
@@ -416,8 +421,11 @@ async function initMicReactivity() {
 
 function submitVoiceToPython(text) {
   if (!text || !text.trim()) return;
+  if (P.mode !== 'listening') return;
+  if (Date.now() < _sttCooldownUntil) return;
 
   const clean = text.trim();
+  if (clean.length < 2) return;
   setTranscript(`YOU: ${clean}`);
 
   if (window.pywebview && window.pywebview.api && window.pywebview.api.submit_voice) {
@@ -437,6 +445,22 @@ function initSpeechRecognition() {
   _recognizer.interimResults = false;
   _recognizer.lang = 'en-US';
 
+  const restartRecognition = (delayMs = 240) => {
+    if (!_reconnectRecognition || !_recognizer) return;
+    const wait = Math.max(80, Number(delayMs || 0));
+    setTimeout(() => {
+      if (_recognitionRunning || !_reconnectRecognition || !_recognizer) {
+        return;
+      }
+      try {
+        _recognizer.start();
+        _recognitionRunning = true;
+      } catch (_) {
+        restartRecognition(Math.min(wait + 180, 1200));
+      }
+    }, wait);
+  };
+
   _recognizer.onresult = (event) => {
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const r = event.results[i];
@@ -447,33 +471,21 @@ function initSpeechRecognition() {
   };
 
   _recognizer.onerror = () => {
-    if (_reconnectRecognition) {
-      setTimeout(() => {
-        if (!_recognitionRunning) {
-          try { _recognizer.start(); } catch (_) {}
-        }
-      }, 300);
-    }
+    _recognitionRunning = false;
+    restartRecognition(320);
   };
 
   _recognizer.onend = () => {
     _recognitionRunning = false;
-    if (_reconnectRecognition) {
-      setTimeout(() => {
-        if (!_recognitionRunning) {
-          try {
-            _recognizer.start();
-            _recognitionRunning = true;
-          } catch (_) {}
-        }
-      }, 120);
-    }
+    restartRecognition(140);
   };
 
   try {
     _recognizer.start();
     _recognitionRunning = true;
-  } catch (_) {}
+  } catch (_) {
+    restartRecognition(260);
+  }
 }
 
 window.jarvis = {
