@@ -1,154 +1,184 @@
-# JARVIS CLI + Desktop
+# 🤖 Jarvis CLI
 
-JARVIS supports three maintained run modes:
+Jarvis is a hybrid AI assistant that combines **deterministic local tools**, **real-time web search**, and a **conversational fallback LLM**.
 
-- Both mode (default): terminal CLI and desktop GUI at the same time.
-- GUI voice mode: always-listening voice input in a Python desktop window.
-- CLI text mode: terminal prompt with streamed text replies and spoken output.
+Built for reliability and practical usage:
 
-## Project Structure
+* ⚡ Commands execute deterministically
+* 🌐 Real-time queries use live search
+* 🧠 Conversational responses stay concise and useful
 
-```
-app/
-  main.py         # Unified launcher (default BOTH)
-  cli.py          # Terminal mode
-  desktop.py      # Desktop mode (pywebview wrapper)
+---
 
-core/
-  runtime.py      # Groq streaming orchestration
-  settings.py     # Config, prompt, constants
-  personality.py  # Unified response style and tone adaptation
-  humor.py        # Context-aware weather humor engine
-  time_utils.py   # Time bucket and greeting utilities
-  dependencies.py # Dependency checks
-  env.py          # .env loader
+## ✨ Features
 
-memory/
-  store.py        # Persistent JSON memory (user profile facts)
+* 🧠 Intelligent query routing (command vs search vs conversation)
+* 🌐 Real-time internet search (Serper API)
+* 💾 Persistent memory (context-aware interactions)
+* 🖥️ System tools (IP, speed test, system status)
+* 🌦️ Weather and location services
+* 🎤 Voice support (TTS + STT)
+* 🧩 CLI + GUI hybrid runtime
+* 🔁 Correction workflow with confidence output
 
-services/
-  weather_service.py  # Open-Meteo weather + city geocoding + local weather
-  news_service.py     # News wrapper over realtime search
-  network_service.py  # Public IP, IP location, speedtest, status snapshots
-  search_service.py   # Serper.dev realtime web search
-  intent_router.py    # Priority-based local intent routing
-  utils/
-    http_client.py
-    location_utils.py
+---
 
-utils/
-  text_cleaner.py     # Query preprocessing before routing
-  geocode_resolver.py # Ranked city resolution for geocoding ambiguity
+## 🚀 Getting Started
 
-voice/
-  tts.py          # RealtimeTTS + Piper
-  stt.py          # Future Python STT placeholder
+### 1. Clone the repository
 
-interface/
-  cli_ui.py       # Terminal rendering/input
-  api_bridge.py   # pywebview JS/Python bridge
-
-frontend/
-  index.html
-  assets/
-    styles.css
-    main.js
-
-models/
-.env
-requirements.txt
-AI_ASSISTANCE.md
-README.md
-jarvis.py         # Root compatibility launcher
+```bash
+git clone https://github.com/deepakrakshit/jarvis.git
+cd jarvis
 ```
 
-## Setup
+### 2. Create virtual environment
 
-1. Activate virtual environment.
-2. Install dependencies:
+```bash
+python -m venv venv
+```
 
-```powershell
+Activate:
+
+```bash
+# Windows
+venv\Scripts\activate
+
+# macOS/Linux
+source venv/bin/activate
+```
+
+### 3. Install dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-3. Ensure `.env` has valid keys (`GROQ_API_KEY`, `HF_TOKEN`) and model paths.
+### 4. Configure environment variables
 
-## Run
+Create a `.env` file:
 
-### Both Mode (default)
+```
+GROQ_API_KEY=your_key_here
+SERPER_API_KEY=your_key_here
+```
 
-```powershell
+### 5. Run Jarvis
+
+```bash
 python jarvis.py
 ```
 
-or
+---
 
-```powershell
-python app/main.py --mode both
+## 🧪 Run Modes
+
+```bash
+python jarvis.py --cli   # Terminal mode
+python jarvis.py --gui   # Desktop UI
 ```
 
-### GUI Voice Mode
+---
 
-```powershell
-python jarvis.py --gui
+## 💬 Example Usage
+
+### 🔍 Search
+
+```
+search on internet who won IPL 2025
+who is the current PM of India
 ```
 
-or
+### ⚙️ System Commands
 
-```powershell
-python app/main.py --mode gui
+```
+run speed test
+what is my current IP
+give me system status
 ```
 
-### CLI Text Mode
+### 🧠 Context Awareness
 
-```powershell
-python app/main.py --mode cli
+```
+who won IPL 2025
+which team won that season
+that's wrong
 ```
 
-or
+---
 
-```powershell
-python jarvis.py --cli
+## 📁 Project Structure
+
+```
+app/         entrypoints and runtime modes
+core/        orchestration and configuration
+services/    tools (search, weather, network)
+memory/      persistent storage
+interface/   CLI bridge
+frontend/    GUI assets
+voice/       speech systems
+utils/       helpers
+docs/        documentation
 ```
 
-## Maintenance Notes
+---
 
-- Keep frontend logic in `frontend/assets/main.js`; avoid embedding long script blocks in HTML.
-- Keep tuning values only in `.env` or `core/settings.py` defaults.
-- Prefer adding new adapters under `interface/` instead of bloating `core/runtime.py`.
-- `voice/stt.py` is reserved for future Python-native STT integration if browser STT is replaced.
-- `memory/store.py` persists user facts (for example, stored name) to disk.
+## 🛠️ Tech Stack
 
-## Service Commands
+* Python
+* Groq (LLM inference)
+* Serper (search API)
+* PyWebView (GUI)
+* Piper TTS / RealtimeTTS
+* psutil (system monitoring)
 
-- Weather:
-  - `weather here`
-  - `weather in Delhi`
-  - `temperature in Mumbai`
-- News:
-  - `latest news`
-  - `latest news in India`
-  - `global news`
-- Internet search:
-  - `search this on internet`
-  - `who won IPL 2025`
-  - `what happened in IPL 2025`
-- Network:
-  - `my public ip`
-  - `where am i`
-  - `run speedtest`
-  - `speedtest result`
-  - `system status`
-- Memory and correction:
-  - `my name is Deepak Rakshit`
-  - `what is my name`
-  - `that's wrong` (triggers local source re-check and corrected answer with confidence)
+---
 
-## API Keys
+## 📌 Roadmap
 
-- Serper.dev (realtime search and factual correction):
-  - Sign up at `https://serper.dev`
-  - Copy API key
-  - Put it in `.env` as `SERPER_API_KEY=...`
-- Open-Meteo (weather + geocoding):
-  - No API key required
+* [ ] Plugin system for tools
+* [ ] Multi-agent task execution
+* [ ] Offline fallback LLM
+* [ ] Mobile companion app
+
+---
+
+## 🤝 Contributing
+
+Pull requests are welcome. For major changes, open an issue first.
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License**.
+
+```
+MIT License
+
+Copyright (c) 2026 Jarvis
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files...
+```
+
+*(Replace "Jarvis" with your name or GitHub username if needed)*
+
+---
+
+## ⚠️ Disclaimer
+
+This project is intended for educational and personal productivity use.
+It is not a fully autonomous system and may require supervision for critical tasks.
+
+---
+
+## ⭐ Support
+
+If you find this project useful:
+
+* ⭐ Star the repo
+* 🍴 Fork it
+* 🧠 Suggest improvements
+
+---

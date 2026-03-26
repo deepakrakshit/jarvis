@@ -1,20 +1,38 @@
 # Maintaining Guide
 
-## Code Ownership Boundaries
+This project is reliability-first. Preserve deterministic behavior when adding capabilities.
 
-- `app/`: orchestration and entrypoints only.
-- `core/`: runtime logic, prompting, config, env/dependency checks.
-- `voice/`: TTS/STT internals only.
-- `interface/`: transport adapters (CLI rendering, pywebview bridge).
-- `frontend/`: visual layer and browser-side voice/reactivity logic.
+## Ownership Boundaries
 
-## Rules for New Features
+- `app/`: launchers and mode wiring only.
+- `core/`: runtime orchestration, policy, and global flow control.
+- `services/`: feature execution units and external integrations.
+- `interface/`: transport/UI bridge adapters.
+- `frontend/`: desktop web UI only.
+- `voice/`: speech pipeline internals.
 
-1. Add new runtime behavior in `core/runtime.py` only when it is model-agnostic.
-2. Keep UI-specific signaling in `interface/api_bridge.py`, not in `core/runtime.py`.
-3. Keep tuning knobs in `.env` and `core/settings.py` defaults.
-4. If adding browser visuals, edit `frontend/assets/main.js` and `frontend/assets/styles.css`.
-5. Avoid placing long scripts/styles inside `frontend/index.html`.
+## Routing-Safe Change Rules
+
+1. Keep intent precedence explicit in `core/runtime.py`.
+2. Do not allow policy or abusive-input handlers to block executable intents.
+3. Keep factual/current-affairs prompts routed through search synthesis.
+4. Keep operational commands deterministic (speed test, IP, status, weather).
+5. Avoid broad regexes (`check`, `again`, generic fragments) without negative guards.
+
+## Source Priority Contract
+
+- Factual or time-sensitive: web search synthesis
+- Operational/local state: deterministic services
+- Conceptual: LLM fallback (brief by default)
+- User profile/context: memory-backed retrieval
+
+If a change violates this contract, treat it as a regression.
+
+## Dependency Management
+
+- Install/update via `pip install -r requirements.txt`.
+- Keep `requirements.txt` runtime-focused.
+- Call out any native/binary dependencies in release notes.
 
 ## Run Matrix
 
@@ -23,15 +41,29 @@
 - CLI only: `python jarvis.py --cli`
 - Direct launcher: `python app/main.py --mode both|gui|cli`
 
-## Dependency Management
+## Regression Checklist Before Merge
 
-- Install/update via `pip install -r requirements.txt`
-- Keep `requirements.txt` minimal and runtime-focused.
-- Add comments in PR/commit notes for any dependency with native binaries.
+1. Validate syntax/errors in modified Python files.
+2. Replay intent-critical turns:
+	- factual office-holder query
+	- holiday verification query
+	- speed test start + result follow-up
+	- generic `search on internet` follow-up query
+3. Confirm no stale speed snapshot is returned as fresh test output.
+4. Confirm conceptual answer brevity still applies when detail is not requested.
+5. Confirm correction flow still removes duplicate confidence suffixes.
 
-## Stability Checklist Before Shipping
+## Release Checklist
 
-1. `python -m py_compile` for all `app/core/voice/interface` modules.
-2. Smoke test GUI launch.
-3. Smoke test CLI query + TTS response.
-4. Validate `.env` path values for `models/`.
+1. Update docs in `docs/` for behavior changes.
+2. Update `README.md` command examples if user-facing behavior changed.
+3. Keep `.env` variable docs aligned with `core/settings.py`.
+4. Smoke test both CLI and GUI launches.
+
+## Documentation Map
+
+- `docs/ARCHITECTURE.md`
+- `docs/ROUTING.md`
+- `docs/COMMANDS.md`
+- `docs/TESTING.md`
+- `docs/TROUBLESHOOTING.md`

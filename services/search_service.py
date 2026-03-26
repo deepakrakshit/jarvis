@@ -153,6 +153,9 @@ class SearchService:
         if "prime minister" in lowered_query and "prime minister" not in probe:
             return False
 
+        if "president" in lowered_query and "president" not in probe:
+            return False
+
         if any(token in lowered_query for token in ("replacement", "replace", "replaced")):
             if not any(token in probe for token in ("replacement", "replace", "replaced", "squad", "campaign", "injury")):
                 return False
@@ -238,6 +241,7 @@ class SearchService:
         candidates: list[str] = []
         patterns = [
             r"\b([A-Z][A-Za-z]+(?:\s+[A-Z]\.?)?(?:\s+[A-Z][A-Za-z]+){0,2})\s+is\s+the\s+current\s+president\b",
+            r"\b([A-Z][A-Za-z]+(?:\s+[A-Z]\.?)?(?:\s+[A-Z][A-Za-z]+){0,2})\s+is\s+the\s+\d+(?:st|nd|rd|th)?\s+and\s+current\s+president\b",
             r"\bcurrent\s+president(?:\s+of\s+[A-Za-z\s]+)?\s*(?:is|:)\s*([A-Z][A-Za-z]+(?:\s+[A-Z]\.?)?(?:\s+[A-Z][A-Za-z]+){0,2})\b",
             r"\bPresident\s+([A-Z][A-Za-z]+(?:\s+[A-Z]\.?)?(?:\s+[A-Z][A-Za-z]+){0,2})\b",
         ]
@@ -304,6 +308,8 @@ class SearchService:
                 confidence = "high" if score >= 2 else "medium"
                 if "united states" in lowered_query or "usa" in lowered_query or "us" in lowered_query:
                     return (f"{person} is the current President of the United States.", confidence)
+                if "india" in lowered_query:
+                    return (f"{person} is the current President of India.", confidence)
                 return (f"{person} is the current President.", confidence)
 
             return (

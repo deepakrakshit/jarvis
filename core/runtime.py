@@ -49,7 +49,7 @@ class JarvisRuntime:
         re.IGNORECASE,
     )
     SPEEDTEST_RE = re.compile(r"\b(speed\s*test|speedtest|internet speed|network speed)\b", re.IGNORECASE)
-    PUBLIC_IP_RE = re.compile(r"\b(public ip|my ip|ip address|external ip)\b", re.IGNORECASE)
+    PUBLIC_IP_RE = re.compile(r"\b(public ip|my ip|ip address|external ip|current ip|current ip address)\b", re.IGNORECASE)
     LOCATION_RE = re.compile(r"\b(where am i|my location|current location|location from ip|network location)\b", re.IGNORECASE)
     STATUS_RE = re.compile(
         r"\b(system status|device status|pc status|computer status|network status|status of (?:my )?(?:system|pc|computer|device)|how is (?:my )?(?:system|pc|computer|device))\b",
@@ -90,6 +90,7 @@ class JarvisRuntime:
         self._last_assistant_reply = ""
         self._last_user_query = ""
         self._last_search_query = str(self.memory.get("last_search_query") or "").strip()
+        self._last_speedtest_requested_at = float(self.memory.get("last_speedtest_requested_at") or 0.0)
 
         self.tts = RealtimePiperTTS(
             self.config,
@@ -359,6 +360,12 @@ class JarvisRuntime:
         ):
             return True
 
+        if re.search(r"\b(is|are)\b", lowered) and re.search(
+            r"\b(current|prime minister|\bpm\b|president|chief minister|captain)\b",
+            lowered,
+        ):
+            return True
+
         if re.search(r"\b(confirm|replacement|replace|replaced)\b", lowered) and re.search(
             r"\b(ipl|season|campaign|team|squad|player)\b",
             lowered,
@@ -399,6 +406,10 @@ class JarvisRuntime:
             "speedtest result",
             "internet speed",
             "network speed",
+            "results out",
+            "results out now",
+            "results now",
+            "are the results",
             "download",
             "upload",
             "ping",
@@ -419,6 +430,13 @@ class JarvisRuntime:
         if not match:
             return None
         return match.group(1)
+
+    @staticmethod
+    def _normalize_query_typos(text: str) -> str:
+        normalized = text or ""
+        normalized = re.sub(r"\bibill\b", "IPL", normalized, flags=re.IGNORECASE)
+        normalized = re.sub(r"\bipll\b", "IPL", normalized, flags=re.IGNORECASE)
+        return normalized
 
     @staticmethod
     def _is_short_ipl_season_prompt(text: str) -> bool:
@@ -534,7 +552,8 @@ class JarvisRuntime:
         return True
 
     def _build_effective_search_query(self, text: str) -> str:
-        cleaned = self.text_cleaner.clean(text).cleaned_text or text
+        normalized_text = self._normalize_query_typos(text)
+        cleaned = self.text_cleaner.clean(normalized_text).cleaned_text or normalized_text
         lowered = cleaned.lower()
 
         if re.search(r"\bipl\b", lowered):
@@ -583,11 +602,23 @@ class JarvisRuntime:
 
     def _speed_query_mode(self, text: str) -> str | None:
         lowered = (text or "").lower()
+
+        if any(word in lowered for word in ("run speed", "run speedtest", "start speed", "new speed test", "run internet speed")):
+            return None
+
         if any(word in lowered for word in ("average", "below", "above", "fast", "slow", "good", "better", "improve", "upgrade")):
             return "assessment"
-        if any(word in lowered for word in ("result", "results", "status", "report", "latest", "show", "check")):
+        if any(word in lowered for word in ("result", "results", "status", "report", "latest", "show", "out now", "done")):
             return "result"
         return None
+
+    def _speed_snapshot_is_fresh(self, snapshot: dict[str, float]) -> bool:
+        snapshot_ts = float(snapshot.get("timestamp", 0.0))
+        if snapshot_ts <= 0:
+            return False
+        if self._last_speedtest_requested_at <= 0:
+            return True
+        return snapshot_ts >= self._last_speedtest_requested_at
 
     def _get_memory_speedtest(self) -> dict[str, float] | None:
         payload = self.memory.get("last_speedtest")
@@ -753,10 +784,14 @@ class JarvisRuntime:
         mode = self._speed_query_mode(text)
         memory_snapshot = self._get_memory_speedtest()
 
-        if mode and memory_snapshot and not self.network_service.is_speedtest_running():
+        if mode and memory_snapshot and not self.network_service.is_speedtest_running() and self._speed_snapshot_is_fresh(memory_snapshot):
             if mode == "assessment":
                 return self._build_speedtest_assessment_from_snapshot(memory_snapshot, country=country)
             return self._build_speedtest_result_from_snapshot(memory_snapshot, country=country)
+
+        if mode is None:
+            self._last_speedtest_requested_at = time.time()
+            self.memory.set("last_speedtest_requested_at", self._last_speedtest_requested_at)
 
         response = self.network_service.handle_speedtest_query(text)
 
@@ -770,6 +805,38 @@ class JarvisRuntime:
                 self.memory.set("last_speedtest_error", last_error)
 
         return response
+
+    def _handle_multi_office_query(self, text: str) -> str | None:
+        lowered = (text or "").strip().lower()
+        if "president" not in lowered:
+            return None
+
+        has_india = "india" in lowered
+        has_us = "united states" in lowered or bool(re.search(r"\busa\b|\bus\b", lowered))
+        if not (has_india and has_us):
+            return None
+
+        india_query = "who is the current President of India"
+        us_query = "who is the current President of United States"
+
+        india_results = self.search_service.search_web(india_query, max_results=5)
+        us_results = self.search_service.search_web(us_query, max_results=5)
+
+        if not india_results and not us_results:
+            return self.personality.finalize(
+                "I could not fetch live search results right now. Please verify SERPER_API_KEY in .env or try again shortly.",
+                user_text=text,
+            )
+
+        india_answer, india_conf = self.search_service.extract_consensus_answer(india_results, india_query)
+        us_answer, us_conf = self.search_service.extract_consensus_answer(us_results, us_query)
+
+        confidence_rank = {"low": 1, "medium": 2, "high": 3}
+        min_conf = min(confidence_rank.get(india_conf, 2), confidence_rank.get(us_conf, 2))
+        combined_conf = {1: "low", 2: "medium", 3: "high"}[min_conf]
+
+        message = f"India: {india_answer} United States: {us_answer} Confidence: {combined_conf}."
+        return self.personality.finalize(message, user_text=text)
 
     def _handle_public_ip(self, text: str) -> str:
         self._remember_fact(source="public_ip", query=text, handler=lambda _q: self.network_service.describe_public_ip())
@@ -1010,6 +1077,20 @@ class JarvisRuntime:
             return self._respond_local(
                 text,
                 local_result.response,
+                persist_user=persist_user,
+                stream_to_stdout=stream_to_stdout,
+            )
+
+        multi_office_response = self._handle_multi_office_query(normalized_text)
+        if multi_office_response:
+            self._remember_fact(
+                source="factual_search_fallback",
+                query=normalized_text,
+                handler=lambda q: self.search_service.summarize_search(q, max_results=5, user_text=q),
+            )
+            return self._respond_local(
+                text,
+                multi_office_response,
                 persist_user=persist_user,
                 stream_to_stdout=stream_to_stdout,
             )
