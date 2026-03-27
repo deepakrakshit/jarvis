@@ -1,48 +1,75 @@
-# Intelligent Routing
+# 🧭 Intelligent Routing
 
-This document explains how Jarvis decides where an answer should come from.
+![Routing](https://img.shields.io/badge/Routing-Smart%20Agent-blue)
+![Priority](https://img.shields.io/badge/Priority-Enforced-success)
 
-## Source priority
+---
 
-1. Local deterministic intents
-2. Realtime web search for factual/time-sensitive questions
-3. LLM fallback for conversational or conceptual tasks
+## 🧠 Routing Strategy
 
-## Deterministic intents
+Jarvis uses **priority-based routing**:
 
-Handled directly by local services:
-- speed test and follow-ups
-- IP and location
-- weather and news wrappers
-- system status and local time/date
-- user-name memory operations
+1. ⚡ Fast-path (no agent)
+2. ⚙️ Deterministic tools
+3. 🌐 Web search + synthesis
+4. 🧠 LLM fallback
 
-## Factual routing
+---
 
-Jarvis routes to web search when prompts are likely factual, including:
-- current office-holder questions (PM/President)
-- sports winners/seasons
-- holiday confirmation
-- replacement/campaign verification prompts
+## ⚡ Fast-Path (Bypass Agent)
 
-### Contextual query shaping
+Handled instantly:
 
-Before hitting search, query text is normalized:
-- typo rescue for common tokens (for example IPL misspellings)
-- follow-up anchoring ("that season", "that winner")
-- noisy prefix cleanup ("I said check on internet that ...")
+* greetings
+* identity
+* casual conversation
 
-## Safety against intent hijacking
+---
 
-To keep UX stable:
-- search-policy feedback cannot override actionable commands.
-- abuse language does not block executable intents.
-- speed-test follow-ups require speed-specific markers.
+## ⚙️ Tool Routing
 
-## Ambiguity handling
+Triggered when query involves:
 
-Short ambiguous prompts like `2025 season` trigger clarification instead of guesses.
+* weather
+* IP
+* system status
+* speed test
+* news
+* internet search
 
-## Concise conceptual mode
+---
 
-For conceptual prompts, Jarvis keeps responses brief by default and offers deeper follow-up when needed.
+## 🌐 Factual Routing
+
+Jarvis uses search for:
+
+* current events
+* politics
+* sports results
+* verification queries
+
+---
+
+## 🛡️ Anti-Hallucination Rules
+
+* Real-time data MUST use tools
+* If tools are forbidden → REFUSE
+* No guessing allowed
+
+---
+
+## 🤯 Ambiguity Handling
+
+Example:
+
+```text
+"2025 season"
+```
+
+👉 Jarvis asks clarification instead of guessing
+
+---
+
+## 🎯 Design Goal
+
+> **Correct routing > fast routing**

@@ -1,37 +1,73 @@
-# Testing Guide
+# 🧪 Testing Guide
 
-## Fast validation
+![Testing](https://img.shields.io/badge/Testing-Stress%20Ready-orange)
+![Validation](https://img.shields.io/badge/Validation-Strict-success)
 
-Run syntax checks on critical modules after edits:
+---
 
-- `core/runtime.py`
-- `services/search_service.py`
-- `services/network_service.py`
+## ⚡ Fast Validation
 
-Use editor diagnostics or `python -m py_compile` for targeted files.
+```bash
+python -m compileall agent core services
+```
 
-## Behavioral replay checklist
+---
 
-Validate these flows after routing changes:
+## 🔥 Critical Test Scenarios
 
-1. Factual search auto-routing
-   - PM/President queries
-   - holiday queries
-2. Search command execution
-   - `search on internet ...`
-   - `then search on internet`
-3. Speed test reliability
-   - start test
-   - immediate result follow-up
-   - missing-module handling
-4. Contextual follow-up
-   - `that season` / `which team won`
-5. Conceptual brevity
-   - brief answer by default
-   - deeper explanation only when requested
+### 1. Weather Reliability
 
-## Regression guardrails
+* location override
+* session memory
+* mismatch retry
 
-- Do not let policy-feedback routes hijack actionable commands.
-- Do not return stale speed snapshots as fresh results.
-- Do not force unrelated search fallbacks when relevance filtering fails.
+---
+
+### 2. Tool Refusal
+
+```text
+weather without tools
+```
+
+👉 Must refuse
+
+---
+
+### 3. Multi-Tool Execution
+
+```text
+weather + news + ip
+```
+
+👉 Must run in parallel
+
+---
+
+### 4. Routing Accuracy
+
+* greeting → no agent
+* factual → search
+* system → tool
+
+---
+
+### 5. Synthesizer Quality
+
+* no irrelevant data
+* no hallucination
+* clean formatting
+
+---
+
+## 🚨 Regression Guardrails
+
+* ❌ No stale outputs
+* ❌ No duplicate tool calls
+* ❌ No wrong location data
+* ❌ No fake real-time responses
+
+---
+
+## 🎯 Goal
+
+> **Break the system — then fix it.**

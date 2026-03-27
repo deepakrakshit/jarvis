@@ -1,50 +1,70 @@
-# Troubleshooting
+# 🛠️ Troubleshooting
 
-## Speed test says module missing
+![Debug](https://img.shields.io/badge/Debug-Guide-yellow)
 
-Symptom:
-- Jarvis reports speed test module is missing.
+---
 
-Fix:
-1. Activate venv.
-2. Install dependencies from `requirements.txt`.
-3. Retry `run speed test`.
+## 🌦️ Wrong Weather Location
 
-## Search says it cannot fetch live results
+**Cause:**
 
-Symptom:
-- Jarvis asks to verify `SERPER_API_KEY`.
+* IP mismatch or tool error
 
-Fix:
-1. Add valid `SERPER_API_KEY` in `.env`.
-2. Check network connectivity.
-3. Retry factual query.
+**Fix:**
 
-## Query routed to wrong intent
+* explicitly provide location
+* verify session memory
 
-Symptom:
-- A command gets interpreted as search-policy feedback or abuse feedback.
+---
 
-Fix:
-1. Use direct imperative phrasing (`run speed test`, `what is my current IP`).
-2. If issue persists, inspect regex matchers in `core/runtime.py`.
+## 🌐 Search Not Working
 
-## Current office-holder query seems uncertain
+**Cause:**
 
-Symptom:
-- Reply says it cannot confidently confirm President/PM.
+* invalid `SERPER_API_KEY`
 
-Fix:
-1. Ask a country-specific question.
-2. Retry with explicit office and country in one line.
-3. Ensure search API returns reliable snippets.
+**Fix:**
 
-## Voice pipeline feels delayed
+* update `.env`
+* check network
 
-Symptom:
-- TTS starts late or speech chunks feel slow.
+---
 
-Fix:
-1. Tune `TTS_*` values in `.env`.
-2. Verify Piper model and executable paths.
-3. Keep `tts_chunk_chars` moderate to avoid long first chunk waits.
+## ⚙️ Tool Not Executing
+
+**Cause:**
+
+* routing failure
+
+**Fix:**
+
+* verify planner output
+* check tool registry
+
+---
+
+## 🧠 Wrong Response Type
+
+**Cause:**
+
+* routing misclassification
+
+**Fix:**
+
+* inspect `core/runtime.py`
+* refine intent patterns
+
+---
+
+## 🎤 Voice Delay
+
+**Fix:**
+
+* tune TTS config
+* reduce chunk size
+
+---
+
+## 🚨 Golden Rule
+
+> If output looks correct but feels wrong — debug it.
