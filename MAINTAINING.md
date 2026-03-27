@@ -1,69 +1,172 @@
-# Maintaining Guide
+# 🛠️ Maintaining Guide
 
-This project is reliability-first. Preserve deterministic behavior when adding capabilities.
+![Maintenance](https://img.shields.io/badge/Maintenance-Active-success)
+![Policy](https://img.shields.io/badge/Policy-Reliability--First-blue)
+![Validation](https://img.shields.io/badge/Validation-Required-important)
+![Architecture](https://img.shields.io/badge/Architecture-Modular-purple)
 
-## Ownership Boundaries
+---
 
-- `app/`: launchers and mode wiring only.
-- `core/`: runtime orchestration, policy, and global flow control.
-- `services/`: feature execution units and external integrations.
-- `interface/`: transport/UI bridge adapters.
-- `frontend/`: desktop web UI only.
-- `voice/`: speech pipeline internals.
+## 🧠 Core Principle
 
-## Routing-Safe Change Rules
+> **Reliability > Features**
 
-1. Keep intent precedence explicit in `core/runtime.py`.
-2. Do not allow policy or abusive-input handlers to block executable intents.
-3. Keep factual/current-affairs prompts routed through search synthesis.
-4. Keep operational commands deterministic (speed test, IP, status, weather).
-5. Avoid broad regexes (`check`, `again`, generic fragments) without negative guards.
+All changes must preserve **deterministic behavior, correctness, and system stability**.
 
-## Source Priority Contract
+If a feature compromises reliability, it must be rejected or redesigned.
 
-- Factual or time-sensitive: web search synthesis
-- Operational/local state: deterministic services
-- Conceptual: LLM fallback (brief by default)
-- User profile/context: memory-backed retrieval
+---
 
-If a change violates this contract, treat it as a regression.
+## 🧩 Ownership Boundaries
 
-## Dependency Management
+Each module has strict responsibilities:
 
-- Install/update via `pip install -r requirements.txt`.
-- Keep `requirements.txt` runtime-focused.
-- Call out any native/binary dependencies in release notes.
+* `app/` → launchers and runtime entrypoints
+* `core/` → orchestration, routing, and global policy
+* `agent/` → planning, validation, execution, synthesis loop
+* `services/` → deterministic tools and external integrations
+* `interface/` → CLI / UI bridges
+* `frontend/` → GUI layer only
+* `voice/` → speech pipeline internals
+* `memory/` → session and persistent context
 
-## Run Matrix
+👉 Do not mix responsibilities across layers.
 
-- BOTH (default): `python jarvis.py`
-- GUI only: `python jarvis.py --gui`
-- CLI only: `python jarvis.py --cli`
-- Direct launcher: `python app/main.py --mode both|gui|cli`
+---
 
-## Regression Checklist Before Merge
+## ⚙️ Routing-Safe Change Rules
 
-1. Validate syntax/errors in modified Python files.
-2. Replay intent-critical turns:
-	- factual office-holder query
-	- holiday verification query
-	- speed test start + result follow-up
-	- generic `search on internet` follow-up query
-3. Confirm no stale speed snapshot is returned as fresh test output.
-4. Confirm conceptual answer brevity still applies when detail is not requested.
-5. Confirm correction flow still removes duplicate confidence suffixes.
+All routing logic must remain **explicit and predictable**.
 
-## Release Checklist
+Rules:
 
-1. Update docs in `docs/` for behavior changes.
-2. Update `README.md` command examples if user-facing behavior changed.
-3. Keep `.env` variable docs aligned with `core/settings.py`.
-4. Smoke test both CLI and GUI launches.
+1. Maintain strict intent precedence in `core/runtime.py`
+2. Never allow policy/guardrails to block valid executable intents
+3. Route factual/current queries through **search + synthesis**
+4. Keep operational commands deterministic:
 
-## Documentation Map
+   * weather
+   * IP
+   * system status
+   * speed test
+5. Avoid overly broad matching:
 
-- `docs/ARCHITECTURE.md`
-- `docs/ROUTING.md`
-- `docs/COMMANDS.md`
-- `docs/TESTING.md`
-- `docs/TROUBLESHOOTING.md`
+   * ❌ `check`, `again`, vague keywords
+   * ✅ use constrained, context-aware patterns
+
+---
+
+## 🌐 Source Priority Contract
+
+Every response must follow this hierarchy:
+
+| Type                     | Source                          |
+| ------------------------ | ------------------------------- |
+| Real-time / factual      | Web search + synthesis          |
+| System / operational     | Deterministic services          |
+| Conceptual / explanation | LLM fallback (brief by default) |
+| User context             | Memory-backed retrieval         |
+
+> ⚠️ Violating this contract = regression
+
+---
+
+## 🛡️ Reliability Guarantees
+
+All changes must preserve:
+
+* ❌ No hallucinated real-time data
+* 🔁 Retry + validation for tool outputs
+* 🎯 Correct tool selection and routing
+* ⚡ Deterministic execution where required
+* 🧠 Session consistency (e.g., location memory)
+
+---
+
+## 📦 Dependency Management
+
+* Install/update via:
+
+  ```bash
+  pip install -r requirements.txt
+  ```
+
+* Keep dependencies:
+
+  * minimal
+  * production-relevant
+  * documented if native/binary required
+
+---
+
+## ▶️ Run Matrix
+
+```bash
+python jarvis.py            # Default (CLI + GUI)
+python jarvis.py --cli      # CLI only
+python jarvis.py --gui      # GUI only
+python app/main.py --mode both|cli|gui
+```
+
+---
+
+## 🧪 Regression Checklist (MANDATORY)
+
+Before merging any change:
+
+### ✅ Functional Checks
+
+* Syntax validation across modified files
+* No runtime errors
+
+### 🔥 Critical Scenarios
+
+* Factual query (e.g., office holder)
+* Real-time query (weather/news)
+* Speed test (start → result flow)
+* Internet search + follow-up query
+* Context correction flow
+
+### ⚠️ Safety Checks
+
+* No stale or cached results returned as fresh
+* No hallucinated outputs
+* No routing misclassification
+* No duplicated confidence/response artifacts
+
+---
+
+## 🚀 Release Checklist
+
+Before every release:
+
+1. Update docs in `docs/`
+2. Sync `README.md` examples with behavior
+3. Verify `.env` variables match `core/settings.py`
+4. Smoke test:
+
+   * CLI mode
+   * GUI mode
+
+---
+
+## 📚 Documentation Map
+
+* `docs/ARCHITECTURE.md` → system design
+* `docs/ROUTING.md` → intent routing rules
+* `docs/COMMANDS.md` → supported commands
+* `docs/TESTING.md` → validation strategy
+* `docs/TROUBLESHOOTING.md` → common issues
+
+---
+
+## 🚨 Golden Rule
+
+> **If you cannot confidently explain why a change is safe — do not merge it.**
+
+---
+
+## 👤 Maintained By
+
+**Deepak Rakshit**
+Building reliable, production-grade AI systems 🚀
