@@ -1,38 +1,113 @@
-# 🤖 Jarvis CLI
+# 🤖 Jarvis — Autonomous AI Assistant
 
-Jarvis is a hybrid AI assistant that combines **deterministic local tools**, **real-time web search**, and a **conversational fallback LLM**.
+![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![Status](https://img.shields.io/badge/Status-Active-success)
+![AI](https://img.shields.io/badge/AI-Agent%20Architecture-purple)
+![Build](https://img.shields.io/badge/Build-Passing-brightgreen)
 
-Built for reliability and practical usage:
+> A real-time, production-style AI assistant powered by tool reasoning, validation, and structured decision-making.
 
-* ⚡ Commands execute deterministically
-* 🌐 Real-time queries use live search
-* 🧠 Conversational responses stay concise and useful
+<p align="center">
+  <img src="assets/jarvis_ui.gif" width="700"/>
+</p>
 
 ---
 
-## ✨ Features
+## 🚀 Overview
 
-* 🧠 Intelligent query routing (command vs search vs conversation)
-* 🌐 Real-time internet search (Serper API)
-* 💾 Persistent memory (context-aware interactions)
-* 🖥️ System tools (IP, speed test, system status)
-* 🌦️ Weather and location services
-* 🎤 Voice support (TTS + STT)
-* 🧩 CLI + GUI hybrid runtime
-* 🔁 Correction workflow with confidence output
+Jarvis is not just a chatbot.
+
+It is a **modular AI agent system** that:
+
+* 🧠 Plans actions (Planner)
+* 🛡️ Validates outputs (Validator)
+* ⚙️ Executes tools (Executor)
+* 🧾 Synthesizes responses (Synthesizer)
+
+All orchestrated in a **real-time intelligent runtime**.
+
+---
+
+## ✨ Core Highlights
+
+* 🧠 **AI-based reasoning (not just commands)**
+* ⚡ **Parallel tool execution (async)**
+* 🌍 **Real-time data (weather, news, IP, search)**
+* 🧩 **Modular agent architecture**
+* 🔁 **Retry + validation system (no blind trust)**
+* 🚫 **No hallucination policy for real-time data**
+* 🧭 **Smart routing (fast-path vs agent loop)**
+* 💾 **Session-aware memory (location, context)**
+
+---
+
+## 🏗️ Architecture
+
+```text
+User Input
+   ↓
+Smart Router (fast-path vs agent)
+   ↓
+Planner → Validator → Executor → Tools
+   ↓
+Synthesizer
+   ↓
+Final Response
+```
+
+---
+
+## ⚙️ Features
+
+### 🧠 Intelligence
+
+* Query understanding & routing
+* Multi-step planning
+* Context-aware responses
+
+### 🌐 Real-time Tools
+
+* 🌦️ Weather (validated + retry)
+* 📰 News (filtered + relevant)
+* 🔍 Internet search (raw + AI synthesis)
+* 🌍 Public IP
+* 📊 System status / speed test
+
+### 🧩 System Capabilities
+
+* CLI + GUI modes
+* Voice support (TTS + STT)
+* Persistent memory
+* Correction workflow
+
+---
+
+## 🧪 Example Queries
+
+```bash
+weather in delhi
+latest ai news
+what is my ip
+weather in delhi and latest ai news
+i am in greater noida
+weather?
+```
 
 ---
 
 ## 🚀 Getting Started
 
-### 1. Clone the repository
+### 1. Clone
 
 ```bash
 git clone https://github.com/deepakrakshit/jarvis.git
 cd jarvis
 ```
 
-### 2. Create virtual environment
+---
+
+### 2. Setup Environment
 
 ```bash
 python -m venv venv
@@ -48,20 +123,26 @@ venv\Scripts\activate
 source venv/bin/activate
 ```
 
-### 3. Install dependencies
+---
+
+### 3. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Configure environment variables
+---
 
-Create a `.env` file:
+### 4. Configure Environment
 
-```
+Create `.env`:
+
+```env
 GROQ_API_KEY=your_key_here
 SERPER_API_KEY=your_key_here
 ```
+
+---
 
 ### 5. Run Jarvis
 
@@ -71,7 +152,7 @@ python jarvis.py
 
 ---
 
-## 🧪 Run Modes
+## 🖥️ Run Modes
 
 ```bash
 python jarvis.py --cli   # Terminal mode
@@ -80,105 +161,90 @@ python jarvis.py --gui   # Desktop UI
 
 ---
 
-## 💬 Example Usage
+## 📁 Project Structure
 
-### 🔍 Search
-
-```
-search on internet who won IPL 2025
-who is the current PM of India
-```
-
-### ⚙️ System Commands
-
-```
-run speed test
-what is my current IP
-give me system status
-```
-
-### 🧠 Context Awareness
-
-```
-who won IPL 2025
-which team won that season
-that's wrong
+```text
+agent/        AI agent system (planner, executor, synthesizer, loop)
+core/         runtime orchestration
+services/     external tools (weather, search, news)
+memory/       session & persistence
+voice/        speech systems
+frontend/     GUI
+interface/    CLI bridge
+utils/        helpers
+docs/         documentation
 ```
 
 ---
 
-## 📁 Project Structure
+## 🧠 Design Principles
 
-```
-app/         entrypoints and runtime modes
-core/        orchestration and configuration
-services/    tools (search, weather, network)
-memory/      persistent storage
-interface/   CLI bridge
-frontend/    GUI assets
-voice/       speech systems
-utils/       helpers
-docs/        documentation
-```
+* ❌ No blind trust in tools
+* ✅ Always validate outputs
+* 🔁 Retry on failure
+* 🚫 No fake real-time answers
+* ⚡ Prefer parallel execution
+* 🎯 Minimal, correct, deterministic actions
 
 ---
 
 ## 🛠️ Tech Stack
 
-* Python
-* Groq (LLM inference)
-* Serper (search API)
-* PyWebView (GUI)
-* Piper TTS / RealtimeTTS
-* psutil (system monitoring)
+* **Python**
+* **Groq API** (LLM inference)
+* **Serper API** (search)
+* **PyAutoGUI / system tools**
+* **psutil** (system monitoring)
+* **TTS/STT engines**
 
 ---
 
-## 📌 Roadmap
+## 🗺️ Roadmap
 
-* [ ] Plugin system for tools
-* [ ] Multi-agent task execution
-* [ ] Offline fallback LLM
+* [ ] Plugin system for custom tools
+* [ ] Multi-agent collaboration
+* [ ] Vision integration (screen understanding)
 * [ ] Mobile companion app
+* [ ] Autonomous task execution
+
+---
+
+## 📜 License
+
+This project is licensed under the **MIT License**.
+
+---
+
+### ⚠️ AI & Usage Disclaimer
+
+* Jarvis is an **AI-assisted system**, not fully autonomous.
+* Real-time outputs depend on external APIs.
+* Users should verify critical information before acting.
 
 ---
 
 ## 🤝 Contributing
 
-Pull requests are welcome. For major changes, open an issue first.
+PRs are welcome.
 
----
+For major changes:
 
-## 📄 License
-
-This project is licensed under the **MIT License**.
-
-```
-MIT License
-
-Copyright (c) 2026 Jarvis
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files...
-```
-
-*(Replace "Jarvis" with your name or GitHub username if needed)*
-
----
-
-## ⚠️ Disclaimer
-
-This project is intended for educational and personal productivity use.
-It is not a fully autonomous system and may require supervision for critical tasks.
+* Open an issue first
+* Keep commits structured (`feat`, `fix`, `refactor`)
 
 ---
 
 ## ⭐ Support
 
-If you find this project useful:
+If you like this project:
 
 * ⭐ Star the repo
 * 🍴 Fork it
 * 🧠 Suggest improvements
 
 ---
+
+## 👤 Author
+
+**Deepak Rakshit**
+Building real-world AI systems 🚀
