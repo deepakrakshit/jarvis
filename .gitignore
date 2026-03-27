@@ -36,6 +36,7 @@ Thumbs.db
 # ── Environment Variables ──────────────────────
 
 .env
+!.env.example
 
 # ── Models / Large Files ──────────────────────
 
