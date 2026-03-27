@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
@@ -12,6 +13,8 @@ from services.utils.http_client import HttpClient
 from services.utils.location_utils import LocationInfo
 from utils.geocode_resolver import resolve_geocode
 from utils.text_cleaner import TextCleaner
+
+logger = logging.getLogger(__name__)
 
 
 _WEATHER_CODE_MAP: dict[int, str] = {
@@ -76,9 +79,16 @@ class WeatherService:
             match = re.search(pattern, query, flags=re.IGNORECASE)
             if match:
                 city = match.group(1).strip(" .,!?")
+                city = re.split(r"\b(?:and|also|please|currently|right now)\b", city, maxsplit=1, flags=re.IGNORECASE)[0]
+                city = city.strip(" .,!?")
                 if city:
                     return city
         return None
+
+    @staticmethod
+    def _normalize_location_text(text: str) -> str:
+        collapsed = re.sub(r"\s+", " ", (text or "").strip())
+        return collapsed.strip(" .,!?;:")
 
     @staticmethod
     def _is_local_request(query: str) -> bool:
@@ -183,14 +193,79 @@ class WeatherService:
             return current
         return None
 
-    def get_weather_brief(self, user_text: str) -> str:
-        location, location_error = self._resolve_location(user_text)
+    def get_weather_data(
+        self,
+        *,
+        query: str,
+        explicit_location: str = "",
+        session_location: str = "",
+        allow_ip_fallback: bool = True,
+    ) -> dict[str, Any]:
+        """Return structured weather payload for agent execution and validation."""
+        cleaned = self.text_cleaner.clean(query)
+        query_text = cleaned.cleaned_text or query
+
+        explicit = self._normalize_location_text(explicit_location)
+        parsed_query_city = self._normalize_location_text(self._extract_city(query_text) or "")
+        session_loc = self._normalize_location_text(session_location)
+
+        location: LocationInfo | None = None
+        resolution_source = ""
+        requested_location = ""
+
+        # Priority:
+        # 1) explicit location argument
+        # 2) query-provided location phrase
+        # 3) session location
+        # 4) ip fallback
+        for candidate, source in (
+            (explicit, "explicit_location"),
+            (parsed_query_city, "query_location"),
+            (session_loc, "session_location"),
+        ):
+            if not candidate or candidate.lower() in {"here", "local", "my location", "current location"}:
+                continue
+
+            resolved = resolve_geocode(
+                self.http,
+                candidate,
+                user_country=None,
+                query=query_text,
+            )
+            if resolved:
+                location = resolved
+                requested_location = candidate
+                resolution_source = source
+                break
+
+        if location is None and allow_ip_fallback:
+            location = self.network_service.get_location_from_ip()
+            if location:
+                requested_location = requested_location or self._normalize_location_text(location.city or location.label)
+                resolution_source = "ip_fallback"
+
         if not location:
-            return self.personality.finalize(location_error or "Weather lookup failed before launch.", user_text=user_text)
+            return {
+                "success": False,
+                "error": "location_unresolved",
+                "query": query_text,
+                "requested_location": requested_location,
+                "tool_location": "",
+                "tool_location_label": "",
+                "resolution_source": resolution_source,
+            }
 
         current = self._fetch_current_weather(location)
         if not current:
-            return self.personality.finalize("Open-Meteo did not return weather data right now.", user_text=user_text)
+            return {
+                "success": False,
+                "error": "weather_provider_unavailable",
+                "query": query_text,
+                "requested_location": requested_location,
+                "tool_location": location.city,
+                "tool_location_label": location.label,
+                "resolution_source": resolution_source,
+            }
 
         try:
             temp_c = float(current.get("temperature_2m"))
@@ -199,14 +274,66 @@ class WeatherService:
             wind_kmh = float(current.get("wind_speed_10m"))
             code = int(current.get("weather_code"))
         except Exception:
-            return self.personality.finalize("Weather response was incomplete. Please ask once more.", user_text=user_text)
+            logger.exception("Weather payload parsing failed")
+            return {
+                "success": False,
+                "error": "weather_payload_incomplete",
+                "query": query_text,
+                "requested_location": requested_location,
+                "tool_location": location.city,
+                "tool_location_label": location.label,
+                "resolution_source": resolution_source,
+            }
 
-        return self._format_weather_response(
-            location=location,
-            temp_c=temp_c,
-            feels_c=feels_c,
-            humidity=humidity,
-            wind_kmh=wind_kmh,
-            code=code,
-            user_text=user_text,
+        if location.city:
+            self.memory.set("last_city", location.city)
+
+        return {
+            "success": True,
+            "error": "",
+            "query": query_text,
+            "requested_location": requested_location,
+            "tool_location": self._normalize_location_text(location.city or location.label),
+            "tool_location_label": location.label,
+            "resolution_source": resolution_source,
+            "temperature_c": round(temp_c, 1),
+            "feels_like_c": round(feels_c, 1),
+            "humidity_percent": round(humidity, 1),
+            "wind_kmh": round(wind_kmh, 1),
+            "weather_code": code,
+            "condition": self._describe(code),
+        }
+
+    def get_weather_brief(self, user_text: str) -> str:
+        payload = self.get_weather_data(
+            query=user_text,
+            explicit_location="",
+            session_location=str(self.memory.get("last_city") or "").strip(),
+            allow_ip_fallback=True,
         )
+        if not bool(payload.get("success")):
+            return self.personality.finalize(
+                "I could not fetch weather data right now.",
+                user_text=user_text,
+            )
+
+        temp_c = float(payload.get("temperature_c") or 0.0)
+        feels_c = float(payload.get("feels_like_c") or 0.0)
+        humidity = float(payload.get("humidity_percent") or 0.0)
+        wind_kmh = float(payload.get("wind_kmh") or 0.0)
+        condition = str(payload.get("condition") or "variable conditions")
+        weather_code = int(payload.get("weather_code") or 0)
+        label = str(payload.get("tool_location_label") or payload.get("tool_location") or "your area")
+
+        advisory = self.humor.weather_line(
+            temp_c=temp_c,
+            condition=condition,
+            weather_code=weather_code,
+            context=label,
+        )
+
+        message = (
+            f"Weather for {label}: {temp_c:.1f}C, feels like {feels_c:.1f}C, "
+            f"{condition}, humidity {humidity:.0f}%, wind {wind_kmh:.1f} km/h. {advisory}"
+        )
+        return self.personality.finalize(message, user_text=user_text)
