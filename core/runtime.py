@@ -9,6 +9,8 @@ from typing import Callable
 
 import requests
 
+from agent.agent_loop import AgentLoop
+from agent.tool_registry import build_default_tool_registry
 from core.humor import HumorEngine
 from core.personality import PersonalityEngine
 from core.settings import AppConfig, RESET, SYSTEM_PROMPT, WHITE
@@ -71,6 +73,10 @@ class JarvisRuntime:
         re.IGNORECASE,
     )
     AMBIGUOUS_SEASON_RE = re.compile(r"^\s*(?:the\s+)?(?:\d{4}|20\d{2})\s+season\.?\s*$|^\s*season\s+\d{4}\.?\s*$", re.IGNORECASE)
+    LOCATION_DECLARE_RE = re.compile(
+        r"\b(?:i am|i'm|im|my location is|currently in|i live in)\s+([a-zA-Z][a-zA-Z\s\-]{1,80})",
+        re.IGNORECASE,
+    )
 
     def __init__(self, config: AppConfig | None = None) -> None:
         self.config = config or AppConfig.from_env(".env")
@@ -91,6 +97,7 @@ class JarvisRuntime:
         self._last_user_query = ""
         self._last_search_query = str(self.memory.get("last_search_query") or "").strip()
         self._last_speedtest_requested_at = float(self.memory.get("last_speedtest_requested_at") or 0.0)
+        self._session_location = ""
 
         self.tts = RealtimePiperTTS(
             self.config,
@@ -102,7 +109,50 @@ class JarvisRuntime:
         self.search_service = SearchService(self.config, self.personality)
         self.weather_service = WeatherService(self.config, self.network_service, self.personality, self.humor, self.memory)
         self.news_service = NewsService(self.config, self.personality, self.search_service)
+        self.tool_registry = build_default_tool_registry(
+            network_service=self.network_service,
+            weather_service=self.weather_service,
+            news_service=self.news_service,
+            search_service=self.search_service,
+            get_session_location=self._get_session_location,
+            set_session_location=self._set_session_location,
+        )
+        self.agent_loop = AgentLoop.from_registry(
+            config=self.config,
+            tool_registry=self.tool_registry,
+            get_session_location=self._get_session_location,
+        )
         self._intent_router = self._build_intent_router()
+
+    def _get_session_location(self) -> str | None:
+        value = " ".join((self._session_location or "").strip().split())
+        return value or None
+
+    def _set_session_location(self, location: str) -> None:
+        cleaned = re.sub(r"\s+", " ", (location or "").strip())
+        cleaned = cleaned.strip(" .,!?;:")
+        if not cleaned:
+            return
+        self._session_location = cleaned
+        self.memory.set("last_city", cleaned)
+
+    def _extract_declared_location(self, text: str) -> str:
+        match = self.LOCATION_DECLARE_RE.search(text or "")
+        if not match:
+            return ""
+        candidate = re.split(
+            r"\b(?:and|but|so|please|weather|forecast|temperature|check)\b",
+            match.group(1),
+            maxsplit=1,
+            flags=re.IGNORECASE,
+        )[0]
+        candidate = re.sub(r"\s+", " ", candidate).strip(" .,!?;:")
+        return candidate
+
+    def _capture_session_location(self, user_text: str) -> None:
+        declared = self._extract_declared_location(user_text)
+        if declared:
+            self._set_session_location(declared)
 
     def _build_intent_router(self) -> IntentRouter:
         router = IntentRouter()
@@ -147,66 +197,6 @@ class JarvisRuntime:
             matcher=self._is_abuse_feedback,
             handler=self._handle_abuse_feedback,
             priority=14,
-        )
-        router.register(
-            name="update_status",
-            matcher=lambda text: bool(self.UPDATE_RE.search(text)),
-            handler=self._handle_update_status,
-            priority=20,
-        )
-        router.register(
-            name="speedtest",
-            matcher=lambda text: bool(self.SPEEDTEST_RE.search(text)) or self._is_speedtest_followup_query(text),
-            handler=self._handle_speedtest_query,
-            priority=30,
-        )
-        router.register(
-            name="public_ip",
-            matcher=lambda text: bool(self.PUBLIC_IP_RE.search(text)),
-            handler=self._handle_public_ip,
-            priority=40,
-        )
-        router.register(
-            name="network_location",
-            matcher=lambda text: bool(self.LOCATION_RE.search(text)),
-            handler=self._handle_network_location,
-            priority=50,
-        )
-        router.register(
-            name="weather",
-            matcher=lambda text: bool(self.WEATHER_RE.search(text)),
-            handler=self._handle_weather,
-            priority=60,
-        )
-        router.register(
-            name="news",
-            matcher=lambda text: bool(self.NEWS_RE.search(text)),
-            handler=self._handle_news,
-            priority=70,
-        )
-        router.register(
-            name="internet_search",
-            matcher=self._is_search_request,
-            handler=self._handle_search,
-            priority=75,
-        )
-        router.register(
-            name="ambiguous_season",
-            matcher=self._is_ambiguous_season_query,
-            handler=self._handle_ambiguous_season_query,
-            priority=76,
-        )
-        router.register(
-            name="system_status",
-            matcher=lambda text: "project status" not in text.lower() and bool(self.STATUS_RE.search(text)),
-            handler=self._handle_system_status,
-            priority=80,
-        )
-        router.register(
-            name="temporal",
-            matcher=lambda text: bool(self.TEMPORAL_RE.search(text)),
-            handler=self._handle_temporal,
-            priority=90,
         )
         return router
 
@@ -755,17 +745,17 @@ class JarvisRuntime:
                 confidence = "medium"
             return self.personality.correction(corrected, confidence=confidence, user_text=text)
 
-        if self._last_user_query and self._is_factual_query(self._last_user_query):
-            corrected = self.search_service.summarize_search(
-                self._last_user_query,
-                max_results=4,
-                user_text=text,
-            )
-            corrected = re.sub(r"\s*Confidence:\s*(high|medium|low)\.?$", "", corrected, flags=re.IGNORECASE).strip()
-            confidence = "high"
-            if "could not fetch live search results" in corrected.lower():
-                confidence = "medium"
-            return self.personality.correction(corrected, confidence=confidence, user_text=text)
+        if self._last_user_query:
+            retry = self.agent_loop.run(self._last_user_query)
+            if retry.handled and retry.response:
+                corrected = re.sub(
+                    r"\s*Confidence:\s*(high|medium|low)\.?$",
+                    "",
+                    retry.response,
+                    flags=re.IGNORECASE,
+                ).strip()
+                confidence = "high" if not retry.error else "medium"
+                return self.personality.correction(corrected, confidence=confidence, user_text=text)
 
         fallback = (
             "I rechecked the local sources available in this build, "
@@ -807,36 +797,10 @@ class JarvisRuntime:
         return response
 
     def _handle_multi_office_query(self, text: str) -> str | None:
-        lowered = (text or "").strip().lower()
-        if "president" not in lowered:
-            return None
-
-        has_india = "india" in lowered
-        has_us = "united states" in lowered or bool(re.search(r"\busa\b|\bus\b", lowered))
-        if not (has_india and has_us):
-            return None
-
-        india_query = "who is the current President of India"
-        us_query = "who is the current President of United States"
-
-        india_results = self.search_service.search_web(india_query, max_results=5)
-        us_results = self.search_service.search_web(us_query, max_results=5)
-
-        if not india_results and not us_results:
-            return self.personality.finalize(
-                "I could not fetch live search results right now. Please verify SERPER_API_KEY in .env or try again shortly.",
-                user_text=text,
-            )
-
-        india_answer, india_conf = self.search_service.extract_consensus_answer(india_results, india_query)
-        us_answer, us_conf = self.search_service.extract_consensus_answer(us_results, us_query)
-
-        confidence_rank = {"low": 1, "medium": 2, "high": 3}
-        min_conf = min(confidence_rank.get(india_conf, 2), confidence_rank.get(us_conf, 2))
-        combined_conf = {1: "low", 2: "medium", 3: "high"}[min_conf]
-
-        message = f"India: {india_answer} United States: {us_answer} Confidence: {combined_conf}."
-        return self.personality.finalize(message, user_text=text)
+        result = self.agent_loop.run(text)
+        if result.handled:
+            return result.response
+        return None
 
     def _handle_public_ip(self, text: str) -> str:
         self._remember_fact(source="public_ip", query=text, handler=lambda _q: self.network_service.describe_public_ip())
@@ -855,17 +819,13 @@ class JarvisRuntime:
         return self.news_service.get_news_brief(text)
 
     def _handle_search(self, text: str) -> str:
-        topic = self._extract_search_topic(text)
-        effective_query = self._build_effective_search_query(topic)
-        self._last_search_query = effective_query
-        self.memory.set("last_search_query", effective_query)
-
-        self._remember_fact(
-            source="internet_search",
-            query=effective_query,
-            handler=lambda q: self.search_service.summarize_search(q, max_results=5, user_text=q),
+        result = self.agent_loop.run(text)
+        if result.handled and result.response:
+            return result.response
+        return self.personality.finalize(
+            "I could not complete that web search request right now.",
+            user_text=text,
         )
-        return self.search_service.summarize_search(effective_query, max_results=5, user_text=text)
 
     def _handle_system_status(self, text: str) -> str:
         self._remember_fact(source="system_status", query=text, handler=lambda _q: self.network_service.get_system_status_snapshot())
@@ -1060,12 +1020,13 @@ class JarvisRuntime:
     ) -> str:
         cleaned = self.text_cleaner.clean(text)
         normalized_text = cleaned.cleaned_text or text
+        self._capture_session_location(normalized_text)
 
         # Support "weather again" style turns by reusing remembered city context.
         if cleaned.had_again and self.WEATHER_RE.search(normalized_text):
             has_city = bool(re.search(r"\b(?:in|at|for)\s+[a-zA-Z]", normalized_text, flags=re.IGNORECASE))
             if not has_city:
-                last_city = str(self.memory.get("last_city") or "").strip()
+                last_city = self._get_session_location() or str(self.memory.get("last_city") or "").strip()
                 if last_city:
                     normalized_text = f"weather in {last_city}"
 
@@ -1081,58 +1042,16 @@ class JarvisRuntime:
                 stream_to_stdout=stream_to_stdout,
             )
 
-        multi_office_response = self._handle_multi_office_query(normalized_text)
-        if multi_office_response:
+        agent_result = self.agent_loop.run(normalized_text)
+        if agent_result.handled and agent_result.response:
             self._remember_fact(
-                source="factual_search_fallback",
+                source="agent_loop",
                 query=normalized_text,
-                handler=lambda q: self.search_service.summarize_search(q, max_results=5, user_text=q),
+                handler=lambda q: self.agent_loop.run(q).response,
             )
             return self._respond_local(
                 text,
-                multi_office_response,
-                persist_user=persist_user,
-                stream_to_stdout=stream_to_stdout,
-            )
-
-        if re.search(r"\bipl\b", normalized_text, flags=re.IGNORECASE) and re.search(r"\b20\d{2}\b", normalized_text):
-            search_query = self._build_effective_search_query(normalized_text)
-            search_response = self.search_service.summarize_search(
-                search_query,
-                max_results=5,
-                user_text=text,
-            )
-            self._last_search_query = search_query
-            self.memory.set("last_search_query", search_query)
-            self._remember_fact(
-                source="internet_search",
-                query=search_query,
-                handler=lambda q: self.search_service.summarize_search(q, max_results=5, user_text=q),
-            )
-            return self._respond_local(
-                text,
-                search_response,
-                persist_user=persist_user,
-                stream_to_stdout=stream_to_stdout,
-            )
-
-        if self._is_factual_query(normalized_text):
-            effective_query = self._build_effective_search_query(normalized_text)
-            search_response = self.search_service.summarize_search(
-                effective_query,
-                max_results=5,
-                user_text=text,
-            )
-            self._last_search_query = effective_query
-            self.memory.set("last_search_query", effective_query)
-            self._remember_fact(
-                source="factual_search_fallback",
-                query=effective_query,
-                handler=lambda q: self.search_service.summarize_search(q, max_results=5, user_text=q),
-            )
-            return self._respond_local(
-                text,
-                search_response,
+                agent_result.response,
                 persist_user=persist_user,
                 stream_to_stdout=stream_to_stdout,
             )
