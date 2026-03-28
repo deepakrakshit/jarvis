@@ -3,8 +3,11 @@ from __future__ import annotations
 import datetime
 from difflib import SequenceMatcher
 import json
+import math
+import os
 import queue
 import re
+import socket
 import threading
 import time
 from functools import partial
@@ -102,6 +105,56 @@ class JarvisBridge:
     def _call_js(self, fn_name: str, *args: Any) -> None:
         js_args = ", ".join(json.dumps(arg) for arg in args)
         self._eval_js(f"{fn_name}({js_args});")
+
+    @staticmethod
+    def _safe_number(value: Any) -> float | None:
+        try:
+            parsed = float(value)
+        except Exception:
+            return None
+        if not math.isfinite(parsed):
+            return None
+        return parsed
+
+    @staticmethod
+    def _safe_percent(value: Any) -> float | None:
+        parsed = JarvisBridge._safe_number(value)
+        if parsed is None:
+            return None
+        return max(0.0, min(100.0, parsed))
+
+    @staticmethod
+    def _safe_bool(value: Any) -> bool | None:
+        if isinstance(value, bool):
+            return value
+        return None
+
+    @staticmethod
+    def _pick_temperature_celsius(temps: Any) -> float | None:
+        if not isinstance(temps, dict) or not temps:
+            return None
+
+        for readings in temps.values():
+            for entry in readings or ():
+                current = JarvisBridge._safe_number(getattr(entry, "current", None))
+                if current is None:
+                    continue
+                return max(-50.0, min(150.0, current))
+        return None
+
+    @staticmethod
+    def _measure_connect_latency_ms(*, host: str = "1.1.1.1", port: int = 443, timeout: float = 0.35) -> float | None:
+        started = time.perf_counter()
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                pass
+        except Exception:
+            return None
+
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        if not math.isfinite(elapsed_ms):
+            return None
+        return max(0.0, elapsed_ms)
 
     @staticmethod
     def _normalize_for_compare(text: str) -> str:
@@ -269,30 +322,127 @@ class JarvisBridge:
                 self._on_mode_change("listening")
 
     def _metrics_worker(self) -> None:
+        host_name = socket.gethostname() or "UNKNOWN"
+        root_path = os.path.abspath(os.sep)
+        proc = None
+        prev_net = None
+        prev_net_ts = time.time()
+        last_latency_check_at = 0.0
+        last_latency_ms: float | None = None
+
         if psutil is not None:
             try:
                 psutil.cpu_percent(interval=None)
             except Exception:
                 pass
 
+            try:
+                proc = psutil.Process(os.getpid())
+            except Exception:
+                proc = None
+
         while not self._stop.is_set():
-            cpu: float | None = None
-            ram: float | None = None
+            payload: dict[str, Any] = {
+                "cpuPercent": None,
+                "ramPercent": None,
+                "ramUsedGb": None,
+                "ramTotalGb": None,
+                "diskPercent": None,
+                "diskUsedGb": None,
+                "diskTotalGb": None,
+                "temperatureC": None,
+                "threads": None,
+                "netDownMBps": None,
+                "netUpMBps": None,
+                "netPacketsTotal": None,
+                "latencyMs": None,
+                "batteryPercent": None,
+                "batteryCharging": None,
+                "batteryPlugged": None,
+                "batterySecsLeft": None,
+                "hostname": host_name,
+                "systemTime": "--:--:--",
+                "systemDate": "----/--/--",
+                "uptimeSeconds": 0,
+            }
+
+            now_ts = time.time()
 
             if psutil is not None:
                 try:
-                    cpu = max(0.0, min(1.0, psutil.cpu_percent(interval=None) / 100.0))
-                    ram = max(0.0, min(1.0, psutil.virtual_memory().percent / 100.0))
+                    cpu_percent = self._safe_percent(psutil.cpu_percent(interval=None))
+                    if cpu_percent is not None:
+                        payload["cpuPercent"] = cpu_percent
+
+                    virtual_mem = psutil.virtual_memory()
+                    payload["ramPercent"] = self._safe_percent(getattr(virtual_mem, "percent", None))
+
+                    vm_used = self._safe_number(getattr(virtual_mem, "used", None))
+                    vm_total = self._safe_number(getattr(virtual_mem, "total", None))
+                    if vm_used is not None:
+                        payload["ramUsedGb"] = vm_used / (1024.0 ** 3)
+                    if vm_total is not None:
+                        payload["ramTotalGb"] = vm_total / (1024.0 ** 3)
+
+                    disk = psutil.disk_usage(root_path)
+                    payload["diskPercent"] = self._safe_percent(getattr(disk, "percent", None))
+                    disk_used = self._safe_number(getattr(disk, "used", None))
+                    disk_total = self._safe_number(getattr(disk, "total", None))
+                    if disk_used is not None:
+                        payload["diskUsedGb"] = disk_used / (1024.0 ** 3)
+                    if disk_total is not None:
+                        payload["diskTotalGb"] = disk_total / (1024.0 ** 3)
+
+                    if proc is not None:
+                        payload["threads"] = int(proc.num_threads())
+
+                    net = psutil.net_io_counters()
+                    if prev_net is not None and now_ts > prev_net_ts:
+                        dt = max(0.001, now_ts - prev_net_ts)
+                        recv_delta = float(net.bytes_recv - prev_net.bytes_recv)
+                        sent_delta = float(net.bytes_sent - prev_net.bytes_sent)
+                        payload["netDownMBps"] = max(0.0, recv_delta / dt / (1024.0 ** 2))
+                        payload["netUpMBps"] = max(0.0, sent_delta / dt / (1024.0 ** 2))
+
+                    payload["netPacketsTotal"] = float(net.packets_recv + net.packets_sent)
+                    prev_net = net
+                    prev_net_ts = now_ts
+
+                    battery = psutil.sensors_battery()
+                    if battery is not None:
+                        payload["batteryPercent"] = self._safe_percent(getattr(battery, "percent", None))
+                        plugged = self._safe_bool(getattr(battery, "power_plugged", None))
+                        payload["batteryCharging"] = plugged
+                        payload["batteryPlugged"] = plugged
+
+                        secs_left = self._safe_number(getattr(battery, "secsleft", None))
+                        unknown_markers = {
+                            float(getattr(psutil, "POWER_TIME_UNLIMITED", -2)),
+                            float(getattr(psutil, "POWER_TIME_UNKNOWN", -1)),
+                        }
+                        if secs_left is not None and secs_left >= 0 and secs_left not in unknown_markers:
+                            payload["batterySecsLeft"] = secs_left
+
+                    try:
+                        temps = psutil.sensors_temperatures(fahrenheit=False)
+                    except Exception:
+                        temps = None
+                    payload["temperatureC"] = self._pick_temperature_celsius(temps)
                 except Exception:
-                    cpu = None
-                    ram = None
+                    pass
+
+            if (now_ts - last_latency_check_at) >= 5.0:
+                last_latency_ms = self._measure_connect_latency_ms()
+                last_latency_check_at = now_ts
+
+            payload["latencyMs"] = last_latency_ms
 
             now = datetime.datetime.now().astimezone()
-            current_time = now.strftime("%H:%M:%S")
-            current_date = now.strftime("%Y-%m-%d")
-            uptime_seconds = max(0, int(time.time() - self._boot_time))
+            payload["systemTime"] = now.strftime("%H:%M:%S")
+            payload["systemDate"] = now.strftime("%Y-%m-%d")
+            payload["uptimeSeconds"] = max(0, int(time.time() - self._boot_time))
 
-            self._call_js("window.jarvis.setSystemMetrics", cpu, ram, current_time, current_date, uptime_seconds)
+            self._call_js("window.jarvis.setSystemMetrics", payload)
             time.sleep(0.9)
 
     def shutdown(self, *, close_runtime: bool = True) -> None:
