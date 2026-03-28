@@ -3,9 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>J.A.R.V.I.S - Core Engine</title>
+  <title>J.A.R.V.I.S. - Adaptive Plasma Core</title>
   <link rel="stylesheet" href="./assets/styles.css">
-
   <script type="importmap">
   {
     "imports": {
@@ -15,16 +14,141 @@
   }
   </script>
 </head>
-<body>
-  <div id="hud">
-    <div class="corner tl"></div>
-    <div class="corner tr"></div>
-    <div class="corner bl"></div>
-    <div class="corner br"></div>
-    <div id="telemetry">MODE: LISTENING | MIC: 0.00 | PITCH: 0.00 | CPU: 0% | RAM: 0%</div>
-    <div id="transcript">VOICE LINK INITIALIZING...</div>
-    <div id="status"><span class="dot"></span>core online</div>
-  </div>
+<body data-mode="listening">
+  <div id="plasmaStage" aria-hidden="true"></div>
+  <div class="ambient-grid" aria-hidden="true"></div>
+  <div class="scanlines" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <div class="tick-ring" id="tickRing" aria-hidden="true"></div>
+
+  <div class="corner tl" aria-hidden="true"><div class="dot"></div></div>
+  <div class="corner tr" aria-hidden="true"><div class="dot"></div></div>
+  <div class="corner bl" aria-hidden="true"><div class="dot"></div></div>
+  <div class="corner br" aria-hidden="true"><div class="dot"></div></div>
+
+  <div class="side-bar sb-l" aria-hidden="true"></div>
+  <div class="side-bar sb-r" aria-hidden="true"></div>
+  <div class="side-bar sb-t" aria-hidden="true"></div>
+  <div class="side-bar sb-b" aria-hidden="true"></div>
+
+  <section class="widget w-identity">
+    <div class="w-title">ADAPTIVE COGNITIVE INTERFACE</div>
+    <div class="w-body">
+      <div class="id-name">JARVIS</div>
+      <div class="id-sub">JUST A RATHER VERY INTELLIGENT SYSTEM</div>
+      <div class="id-version">v14.2.0 - ADAPTIVE PLASMA CORE - BUILD 2026.03.29</div>
+    </div>
+  </section>
+
+  <section class="widget w-time">
+    <div class="w-title">LOCAL TIME</div>
+    <div class="w-body">
+      <div class="time-display" id="timeHm">--:--</div>
+      <div class="time-inline-row">
+        <span class="time-sec" id="timeSec">:--</span>
+        <span class="time-tz" id="timeTz">UTC+00:00</span>
+      </div>
+      <div class="time-date" id="timeDate">--- --, ----</div>
+      <div class="time-split-row">
+        <div>
+          <div class="time-tz">UPTIME</div>
+          <div class="time-date" id="uptime">00:00:00</div>
+        </div>
+        <div>
+          <div class="time-tz">HOST</div>
+          <div class="time-date" id="hostName">UNKNOWN</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="widget w-battery">
+    <div class="w-title">POWER SYSTEMS</div>
+    <div class="w-body">
+      <div class="batt-row">
+        <div class="batt-pct" id="battPct">--%</div>
+        <div class="batt-status" id="battStatus">UNKNOWN</div>
+      </div>
+      <div class="batt-bar-outer"><div class="batt-bar-inner" id="battBar" style="width:0%"></div></div>
+      <div class="batt-info">
+        <span id="battVolt">--.-V</span>
+        <span id="battTemp">--.-C</span>
+        <span id="battCycles">--</span>
+      </div>
+      <div class="batt-detail" style="margin-top:10px">
+        <span>AC LINE</span><span id="battSolar">UNKNOWN</span>
+      </div>
+      <div class="batt-detail">
+        <span>DISCHARGE ETA</span><span id="battGrid">--</span>
+      </div>
+      <div class="batt-detail">
+        <span>RESERVE</span><span id="battBackup">--</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="widget w-system">
+    <div class="w-title">CORE DIAGNOSTICS</div>
+    <div class="w-body">
+      <div class="sys-row">
+        <span class="sys-label">CPU</span>
+        <div class="right"><span class="sys-val" id="cpuVal">--%</span>
+          <div class="sys-bar"><div class="sys-bar-fill" id="cpuBar" style="width:0%"></div></div></div>
+      </div>
+      <div class="sys-row">
+        <span class="sys-label">RAM</span>
+        <div class="right"><span class="sys-val" id="ramVal">--</span>
+          <div class="sys-bar"><div class="sys-bar-fill" id="ramBar" style="width:0%"></div></div></div>
+      </div>
+      <div class="sys-row">
+        <span class="sys-label">GPU</span>
+        <div class="right"><span class="sys-val" id="gpuVal">N/A</span>
+          <div class="sys-bar"><div class="sys-bar-fill" id="gpuBar" style="width:0%"></div></div></div>
+      </div>
+      <div class="sys-row">
+        <span class="sys-label">DISK</span>
+        <div class="right"><span class="sys-val" id="diskVal">--</span>
+          <div class="sys-bar"><div class="sys-bar-fill" id="diskBar" style="width:0%"></div></div></div>
+      </div>
+      <div class="sys-row">
+        <span class="sys-label">TEMP</span>
+        <div class="right"><span class="sys-val" id="tempVal">--.-C</span>
+          <div class="sys-bar"><div class="sys-bar-fill" id="tempBar" style="width:0%"></div></div></div>
+      </div>
+      <div class="sys-row" style="border:none">
+        <span class="sys-label">THREADS</span>
+        <div class="right"><span class="sys-val" id="threadVal">--</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="widget w-modewaves">
+    <div class="w-title">MODE WAVES</div>
+    <div class="w-body">
+      <div class="mode-wave-viewport" id="modeWaveViewport"></div>
+      <div class="mode-wave-legend">
+        <span id="modeTagListening">LISTENING</span>
+        <span id="modeTagProcessing">PROCESSING</span>
+        <span id="modeTagSpeaking">SPEAKING</span>
+      </div>
+      <div class="mode-wave-note" id="modeWaveNote">LISTENING WAVEFIELD STABLE</div>
+    </div>
+  </section>
+
+  <section class="widget w-transcript" aria-live="polite">
+    <div class="w-title">VOICE TRANSCRIPT</div>
+    <div class="w-body">
+      <div class="transcript-line" id="transcriptLine">VOICE LINK INITIALIZING...</div>
+    </div>
+  </section>
+
+  <section class="widget w-status">
+    <div class="w-body status-body">
+      <div class="status-text" id="statusText">ADAPTIVE PLASMA CORE ONLINE</div>
+      <div class="status-bar"><div class="status-bar-fill" id="statusBarFill"></div></div>
+    </div>
+  </section>
 
   <script type="module" src="./assets/main.js"></script>
 </body>
