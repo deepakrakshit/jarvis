@@ -6,7 +6,6 @@ import datetime as _dt
 MORNING_START_HOUR = 5
 AFTERNOON_START_HOUR = 12
 EVENING_START_HOUR = 17
-NIGHT_START_HOUR = 22
 
 
 def get_time_bucket(now: _dt.datetime | None = None) -> str:
@@ -18,9 +17,7 @@ def get_time_bucket(now: _dt.datetime | None = None) -> str:
         return "morning"
     if AFTERNOON_START_HOUR <= hour < EVENING_START_HOUR:
         return "afternoon"
-    if EVENING_START_HOUR <= hour < NIGHT_START_HOUR:
-        return "evening"
-    return "night"
+    return "evening"
 
 
 def get_time_based_greeting(
