@@ -54,6 +54,8 @@ models/
 
 *.db
 *.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
 
 # ── Frontend (if you add build tools later) ───
 
