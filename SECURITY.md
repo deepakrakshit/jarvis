@@ -11,6 +11,7 @@ Jarvis interacts with:
 
 * external APIs
 * system-level tools
+* local user-selected documents
 * user inputs
 
 Security and reliability are **critical priorities**.
@@ -22,16 +23,17 @@ Security and reliability are **critical priorities**.
 If you discover a security issue:
 
 1. **Do NOT open a public issue**
-2. Contact privately via:
+2. Report privately via:
 
-   * GitHub Issues (marked sensitive)
-   * or direct communication
+   * GitHub Security Advisory (preferred)
+   * or trusted direct maintainer contact
 
 Include:
 
 * clear description
 * steps to reproduce
 * potential impact
+* affected files/modules (if known)
 
 ---
 
@@ -43,6 +45,7 @@ Pay special attention to:
 * system command execution
 * tool execution safety
 * external API responses
+* document file validation and parser pipeline behavior
 
 ---
 
@@ -51,6 +54,7 @@ Pay special attention to:
 * Never commit `.env` files
 * Use `.env.example` as reference
 * Rotate compromised keys immediately
+* Treat `GROQ_API_KEY`, `SERPER_API_KEY`, `OPENROUTER_API_KEY`, and `HF_TOKEN` as sensitive
 
 ---
 
@@ -60,6 +64,19 @@ Pay special attention to:
 * Do not trust external APIs blindly
 * Avoid executing unsafe system commands
 * Ensure proper error handling
+* Keep file-picking and path validation in system code, never model-controlled logic
+* Restrict document inputs to supported file types and sane size limits
+
+---
+
+## 📄 Document Pipeline Security Notes
+
+Current hardening expectations:
+
+* File selection remains user/system initiated
+* Paths are validated before parsing
+* Unsupported or oversized files are rejected
+* Fail-open behavior should return safe errors, not partial unsafe execution
 
 ---
 
@@ -68,6 +85,7 @@ Pay special attention to:
 * Depends on third-party APIs
 * No full sandboxing for system tools
 * Requires user supervision for critical actions
+* OCR/vision quality depends on external models and network conditions
 
 ---
 

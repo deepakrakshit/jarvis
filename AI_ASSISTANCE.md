@@ -21,6 +21,7 @@ AI assistance may be used for:
 
 * Code drafting and structured refactoring
 * Boilerplate generation and scaffolding
+* Prompt and pipeline iteration for document intelligence modules
 * Documentation writing and formatting
 * Repetitive or mechanical implementation tasks
 
@@ -47,6 +48,8 @@ All AI-generated code must follow strict constraints:
 * 🚫 No fabricated or guessed outputs (weather, IP, system data)
 * 🧠 No false claims of memory persistence without actual storage
 * 🔁 Validation and retry mechanisms must be enforced
+* 📄 Document analysis must preserve system-controlled file selection and path validation
+* 🔐 API keys and secrets must never be embedded in generated code or docs
 
 ---
 
@@ -62,6 +65,7 @@ Before acceptance:
 * Tool responses must be validated (accuracy + relevance)
 * Edge cases and failure scenarios must be evaluated
 * Routing and execution paths must be verified
+* For document pipeline changes, parser/OCR/vision fallback behavior must be validated
 
 No AI-generated code is merged without **explicit validation**.
 
@@ -77,6 +81,7 @@ It cannot:
 * Make deployment decisions
 * Execute actions without validation
 * Override safety or validation layers
+* Trigger file-picking UX or bypass document path checks
 
 ---
 

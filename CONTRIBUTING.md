@@ -40,6 +40,8 @@ You can contribute:
 * 🐛 Bug fixes
 * ⚡ Performance improvements
 * 🧠 Agent logic enhancements
+* 📄 Document intelligence improvements
+* 🎤 Voice/runtime stability fixes
 * 📄 Documentation improvements
 
 ---
@@ -48,8 +50,10 @@ You can contribute:
 
 * Follow existing project structure
 * Keep modules **single-responsibility**
-* Avoid mixing logic across layers (`core`, `agent`, `services`)
+* Avoid mixing logic across layers (`core`, `agent`, `services`, `interface`, `frontend`)
 * Maintain clear and readable code
+* Keep deterministic tools deterministic (no hidden LLM dependence)
+* Keep document file selection system-controlled (no model-triggered UI actions)
 
 ---
 
@@ -74,6 +78,8 @@ All contributions must ensure:
 * 🔁 Tool outputs are validated
 * ⚡ Deterministic commands remain stable
 * 🧠 Routing logic is not broken
+* 🧾 Identity guardrails remain intact
+* 🔐 No credentials are introduced in source/docs
 
 ---
 
@@ -83,9 +89,11 @@ Checklist:
 
 * [ ] Code runs without errors
 * [ ] No breaking changes to existing features
-* [ ] Tested key flows (weather, search, IP, system)
+* [ ] Tested key flows (weather, search/news, IP, system)
+* [ ] Tested at least one document flow (PDF/DOCX/image) if touching `services/document` or runtime routing
 * [ ] No unnecessary tool calls
 * [ ] No duplicate logic introduced
+* [ ] Updated docs when behavior or configuration changed
 
 ---
 
@@ -95,6 +103,7 @@ Checklist:
 2. Explain **why** the change is needed
 3. Mention affected modules
 4. Attach test cases if relevant
+5. Mention any `.env` variable changes
 
 ---
 
@@ -104,6 +113,8 @@ Checklist:
 * ❌ Do not hardcode responses
 * ❌ Do not introduce hallucinated outputs
 * ❌ Do not break routing precedence
+* ❌ Do not commit local secrets or private keys
+* ❌ Do not add undocumented runtime flags or config keys
 
 ---
 

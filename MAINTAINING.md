@@ -25,6 +25,7 @@ Each module has strict responsibilities:
 * `core/` → orchestration, routing, and global policy
 * `agent/` → planning, validation, execution, synthesis loop
 * `services/` → deterministic tools and external integrations
+* `services/document/` → parsing, OCR, vision, fusion, cache pipeline
 * `interface/` → CLI / UI bridges
 * `frontend/` → GUI layer only
 * `voice/` → speech pipeline internals
@@ -42,14 +43,16 @@ Rules:
 
 1. Maintain strict intent precedence in `core/runtime.py`
 2. Never allow policy/guardrails to block valid executable intents
-3. Route factual/current queries through **search + synthesis**
+3. Route factual/current queries through **internet search + synthesis**
 4. Keep operational commands deterministic:
 
    * weather
-   * IP
+   * public IP / network location
    * system status
    * speed test
-5. Avoid overly broad matching:
+   * temporal snapshot
+5. Keep document requests in the document service branch with file validation
+6. Avoid overly broad matching:
 
    * ❌ `check`, `again`, vague keywords
    * ✅ use constrained, context-aware patterns
@@ -64,6 +67,7 @@ Every response must follow this hierarchy:
 | ------------------------ | ------------------------------- |
 | Real-time / factual      | Web search + synthesis          |
 | System / operational     | Deterministic services          |
+| Document analysis        | Parser/OCR/Vision fused pipeline |
 | Conceptual / explanation | LLM fallback (brief by default) |
 | User context             | Memory-backed retrieval         |
 
@@ -80,6 +84,8 @@ All changes must preserve:
 * 🎯 Correct tool selection and routing
 * ⚡ Deterministic execution where required
 * 🧠 Session consistency (e.g., location memory)
+* 🧾 Assistant identity enforcement for final responses
+* 📄 Safe document analysis behavior (path validation + graceful fallback)
 
 ---
 
@@ -96,6 +102,7 @@ All changes must preserve:
   * minimal
   * production-relevant
   * documented if native/binary required
+* Treat OCR/document dependencies as optional at runtime but tested in CI/dev where enabled
 
 ---
 
@@ -122,10 +129,11 @@ Before merging any change:
 ### 🔥 Critical Scenarios
 
 * Factual query (e.g., office holder)
-* Real-time query (weather/news)
+* Real-time query (weather/news via internet search)
 * Speed test (start → result flow)
 * Internet search + follow-up query
 * Context correction flow
+* Document analysis (PDF or DOCX) with file select + summary output
 
 ### ⚠️ Safety Checks
 
@@ -133,6 +141,7 @@ Before merging any change:
 * No hallucinated outputs
 * No routing misclassification
 * No duplicated confidence/response artifacts
+* No identity/persona drift in assistant responses
 
 ---
 
@@ -143,10 +152,12 @@ Before every release:
 1. Update docs in `docs/`
 2. Sync `README.md` examples with behavior
 3. Verify `.env` variables match `core/settings.py`
-4. Smoke test:
+4. Verify `.env.example` includes all active keys and defaults
+5. Smoke test:
 
    * CLI mode
    * GUI mode
+   * document flow
 
 ---
 

@@ -3,10 +3,10 @@
 ![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Status](https://img.shields.io/badge/Status-Active-success)
-![AI](https://img.shields.io/badge/AI-Agent%20Architecture-purple)
-![Build](https://img.shields.io/badge/Build-Passing-brightgreen)
+![AI](https://img.shields.io/badge/AI-Agent%20%2B%20Document%20Intelligence-purple)
+![Build](https://img.shields.io/badge/Build-Validated-brightgreen)
 
-> A real-time, production-style AI assistant powered by tool reasoning, validation, and structured decision-making.
+> A real-time, production-style assistant with deterministic tools, agent planning, and multimodal document intelligence.
 
 <p align="center">
   <img src="assets/jarvis_ui.gif" width="700"/>
@@ -16,29 +16,27 @@
 
 ## 🚀 Overview
 
-Jarvis is not just a chatbot.
+Jarvis is a modular assistant runtime that combines:
 
-It is a **modular AI agent system** that:
+* 🧠 Local intent routing for fast responses
+* ⚙️ Agent loop for tool planning and execution
+* 📄 Document intelligence pipeline (PDF, DOCX, image)
+* 🎤 Realtime voice output + desktop telemetry UI
 
-* 🧠 Plans actions (Planner)
-* 🛡️ Validates outputs (Validator)
-* ⚙️ Executes tools (Executor)
-* 🧾 Synthesizes responses (Synthesizer)
-
-All orchestrated in a **real-time intelligent runtime**.
+It is designed around reliability-first behavior: deterministic tools where required, validation before synthesis, and clear fallback paths.
 
 ---
 
 ## ✨ Core Highlights
 
-* 🧠 **AI-based reasoning (not just commands)**
-* ⚡ **Parallel tool execution (async)**
-* 🌍 **Real-time data (weather, news, IP, search)**
-* 🧩 **Modular agent architecture**
-* 🔁 **Retry + validation system (no blind trust)**
-* 🚫 **No hallucination policy for real-time data**
-* 🧭 **Smart routing (fast-path vs agent loop)**
-* 💾 **Session-aware memory (location, context)**
+* 🧭 **Priority intent routing** (local fast-path + agent fallback)
+* 🧠 **Planner → Validator → Executor → Synthesizer** loop
+* 🌐 **Live internet evidence** via Serper (including news-style queries)
+* 📄 **Hybrid document pipeline** (text parsing + OCR + vision + reasoning)
+* 🔁 **Validation and retry controls** for external integrations
+* 🚫 **Identity and hallucination guardrails** for assistant responses
+* 💾 **Session-aware memory** (name, location, search context)
+* ⏭️ **Skip current voice reply** control in desktop UI
 
 ---
 
@@ -47,39 +45,60 @@ All orchestrated in a **real-time intelligent runtime**.
 ```text
 User Input
    ↓
-Smart Router (fast-path vs agent)
+Intent Router (fast local intents)
+   ↓ (if not handled)
+Agent Loop: Planner → Validator → Executor → Tools
    ↓
-Planner → Validator → Executor → Tools
+Synthesizer + Personality + Identity Guardrails
    ↓
-Synthesizer
+Final Response (Text + Realtime TTS)
+```
+
+Document requests follow a dedicated branch:
+
+```text
+Document Intent
    ↓
-Final Response
+File Selection + Validation
+   ↓
+Parser/OCR/Vision Fusion Pipeline
+   ↓
+Structured Intelligence + Display Summary
 ```
 
 ---
 
 ## ⚙️ Features
 
-### 🧠 Intelligence
+### 🧠 Intelligence Runtime
 
-* Query understanding & routing
-* Multi-step planning
-* Context-aware responses
+* Priority intent routing for greetings, wellbeing, correction, and profile memory
+* Agent planning for multi-tool or factual queries
+* Identity enforcement to prevent persona drift in final output
 
-### 🌐 Real-time Tools
+### 🌐 Real-Time Tooling
 
-* 🌦️ Weather (validated + retry)
-* 📰 News (filtered + relevant)
-* 🔍 Internet search (raw + AI synthesis)
-* 🌍 Public IP
-* 📊 System status / speed test
+* 🌦️ Weather (location-aware, session-supported)
+* 🔍 Internet search (web + news result surfaces via Serper)
+* 🌍 Public IP + IP-based location
+* ⚙️ System status snapshots
+* 📶 Speedtest workflow with follow-up interpretation
+* 🕒 Temporal snapshots (time/date)
 
-### 🧩 System Capabilities
+### 📄 Document Intelligence
 
-* CLI + GUI modes
-* Voice support (TTS + STT)
-* Persistent memory
-* Correction workflow
+* PDF, DOCX, DOC (with `.doc` conversion guidance), and image support
+* OCR with PaddleOCR + scanned-PDF handling
+* Vision extraction via OpenRouter model chain
+* Fused reasoning pipeline with structured output (summary, insights, key points, tables)
+* SQLite + in-memory cache layers for repeat analyses
+
+### 🎤 Voice + Desktop UX
+
+* Realtime Piper TTS playback
+* CLI and desktop modes
+* Live metrics and transcript view in frontend
+* UI skip button to interrupt active speech safely
 
 ---
 
@@ -88,10 +107,14 @@ Final Response
 ```bash
 weather in delhi
 latest ai news
+who is the prime minister of india
 what is my ip
-weather in delhi and latest ai news
+run speed test
 i am in greater noida
 weather?
+analyze document
+summarize this pdf
+how r u
 ```
 
 ---
@@ -107,7 +130,7 @@ cd jarvis
 
 ---
 
-### 2. Setup Environment
+### 2. Create Virtual Environment
 
 ```bash
 python -m venv venv
@@ -135,12 +158,27 @@ pip install -r requirements.txt
 
 ### 4. Configure Environment
 
-Create `.env`:
+Use the project template:
 
-```env
-GROQ_API_KEY=your_key_here
-SERPER_API_KEY=your_key_here
+```bash
+# Windows
+copy .env.example .env
+
+# macOS/Linux
+cp .env.example .env
 ```
+
+Minimum required keys:
+
+* `GROQ_API_KEY`
+* `SERPER_API_KEY`
+
+Optional but recommended:
+
+* `OPENROUTER_API_KEY` (document vision stage)
+* `HF_TOKEN` (voice model file download support)
+
+See `.env.example` for the complete configuration set, including document cache, OCR, and vision tuning.
 
 ---
 
@@ -155,8 +193,11 @@ python jarvis.py
 ## 🖥️ Run Modes
 
 ```bash
-python jarvis.py --cli   # Terminal mode
-python jarvis.py --gui   # Desktop UI
+python jarvis.py --cli
+python jarvis.py --gui
+python app/main.py --mode both
+python app/main.py --mode cli
+python app/main.py --mode gui
 ```
 
 ---
@@ -164,48 +205,60 @@ python jarvis.py --gui   # Desktop UI
 ## 📁 Project Structure
 
 ```text
-agent/        AI agent system (planner, executor, synthesizer, loop)
-core/         runtime orchestration
-services/     external tools (weather, search, news)
-memory/       session & persistence
-voice/        speech systems
-frontend/     GUI
-interface/    CLI bridge
-utils/        helpers
-docs/         documentation
+agent/              planner, validator, executor, synthesizer, loop
+app/                launchers for CLI/GUI/both
+core/               runtime orchestration, policy, settings
+frontend/           desktop webview UI assets
+interface/          Python ↔ UI bridge APIs
+memory/             persistent memory store
+services/           weather/search/network + document intelligence
+services/document/  parser, OCR, vision, fusion, cache pipeline
+voice/              STT/TTS runtime
+docs/               architecture, routing, commands, testing, troubleshooting
 ```
 
 ---
 
 ## 🧠 Design Principles
 
-* ❌ No blind trust in tools
-* ✅ Always validate outputs
-* 🔁 Retry on failure
-* 🚫 No fake real-time answers
-* ⚡ Prefer parallel execution
-* 🎯 Minimal, correct, deterministic actions
+* ❌ No blind trust in external outputs
+* ✅ Validate before finalizing responses
+* 🔁 Retry only where safe and meaningful
+* 🚫 Do not fabricate real-time data
+* 🎯 Keep deterministic flows deterministic
+* ⚡ Optimize for reliability before novelty
 
 ---
 
 ## 🛠️ Tech Stack
 
-* **Python**
-* **Groq API** (LLM inference)
-* **Serper API** (search)
-* **PyAutoGUI / system tools**
-* **psutil** (system monitoring)
-* **TTS/STT engines**
+* **Python 3.10+**
+* **Groq API** (planner/synthesis/general completion)
+* **Serper API** (internet/news evidence retrieval)
+* **OpenRouter** (document vision extraction)
+* **PaddleOCR + PyMuPDF + pdfplumber + python-docx** (document processing)
+* **RealtimeTTS + Piper** (voice output)
+* **pywebview + Three.js frontend** (desktop UI)
+
+---
+
+## 📚 Documentation Map
+
+* `docs/ARCHITECTURE.md`
+* `docs/ROUTING.md`
+* `docs/COMMANDS.md`
+* `docs/TESTING.md`
+* `docs/TROUBLESHOOTING.md`
 
 ---
 
 ## 🗺️ Roadmap
 
-* [ ] Plugin system for custom tools
-* [ ] Multi-agent collaboration
-* [ ] Vision integration (screen understanding)
-* [ ] Mobile companion app
-* [ ] Autonomous task execution
+* [ ] Plugin tool packs
+* [ ] Deeper multi-agent planning strategies
+* [ ] Expanded multilingual voice + TTS safety controls
+* [ ] Document pipeline benchmark suite
+* [ ] Optional cloud memory sync
 
 ---
 
@@ -217,34 +270,29 @@ This project is licensed under the **MIT License**.
 
 ### ⚠️ AI & Usage Disclaimer
 
-* Jarvis is an **AI-assisted system**, not fully autonomous.
-* Real-time outputs depend on external APIs.
-* Users should verify critical information before acting.
+* Jarvis is AI-assisted, not an autonomous operator.
+* Live answers depend on external APIs and network quality.
+* Validate critical decisions with independent confirmation.
 
 ---
 
 ## 🤝 Contributing
 
-PRs are welcome.
-
-For major changes:
-
-* Open an issue first
-* Keep commits structured (`feat`, `fix`, `refactor`)
+Contributions are welcome. For significant changes, open an issue first and use structured commits (`feat`, `fix`, `refactor`, `docs`, etc.).
 
 ---
 
 ## ⭐ Support
 
-If you like this project:
+If this project helps you:
 
 * ⭐ Star the repo
 * 🍴 Fork it
-* 🧠 Suggest improvements
+* 🧠 Share improvement ideas
 
 ---
 
 ## 👤 Author
 
 **Deepak Rakshit**
-Building real-world AI systems 🚀
+Building reliable real-world AI systems 🚀
