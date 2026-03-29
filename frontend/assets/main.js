@@ -53,6 +53,7 @@ const state = {
   mode: 'listening',
   apiActive: false,
   apiLoad: 0,
+  skipPending: false,
   amplitude: 0,
   targetAmplitude: 0,
   responseEnergy: 0,
@@ -122,6 +123,8 @@ const ui = {
   transcriptLine: byId('transcriptLine'),
   statusText: byId('statusText'),
   statusBarFill: byId('statusBarFill'),
+  skipVoiceBtn: byId('skipVoiceBtn'),
+  skipVoiceOrb: byId('skipVoiceOrb'),
 };
 
 const NOISE_FUNCTIONS = `
@@ -414,6 +417,7 @@ const particles = new THREE.Points(particleGeo, particleMat);
 mainGroup.add(particles);
 
 const modeWaveField = initModeWaveField();
+const skipButtonFx = initSkipButtonFx();
 
 buildTickRing();
 refreshModeUI();
@@ -455,6 +459,7 @@ window.jarvis = {
 
   setApiActivity(active) {
     state.apiActive = !!active;
+    updateSkipButtonState();
   },
 
   setSystemMetrics(payloadOrCpu, ram, clockTime, dateValue, uptimeSeconds) {
@@ -496,6 +501,7 @@ window.jarvis = {
 initMicReactivity();
 initSpeechRecognition();
 initBrowserBatteryMetrics();
+initSkipVoiceButton();
 
 notifyPythonReady();
 window.addEventListener('pywebviewready', notifyPythonReady);
@@ -556,6 +562,7 @@ function animate() {
 
   shellFrontMat.uniforms.uOpacity.value = CONFIG.shellOpacity + state.amplitude * 0.22 + state.apiLoad * 0.1;
   updateModeWaveField(t, profile);
+  updateSkipButtonFx(t);
   controls.update();
   renderer.render(scene, camera);
 }
@@ -567,6 +574,7 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   resizeModeWaveField();
+  resizeSkipButtonFx();
 });
 
 function ingestMetrics(payload) {
@@ -747,6 +755,58 @@ function refreshModeUI() {
   document.body.dataset.mode = state.mode;
   updateModeWaveLegend();
   updateStatusLine();
+  updateSkipButtonState();
+}
+
+function isSkipActionAvailable() {
+  if (state.skipPending) {
+    return false;
+  }
+  if (state.mode === 'speaking' || state.mode === 'processing') {
+    return true;
+  }
+  return !!state.apiActive;
+}
+
+function updateSkipButtonState() {
+  if (!ui.skipVoiceBtn) {
+    return;
+  }
+
+  const available = isSkipActionAvailable();
+  ui.skipVoiceBtn.disabled = !available;
+  ui.skipVoiceBtn.classList.toggle('ready', available);
+  ui.skipVoiceBtn.classList.toggle('speaking', state.mode === 'speaking');
+  ui.skipVoiceBtn.classList.toggle('working', state.mode === 'processing');
+  ui.skipVoiceBtn.classList.toggle('pending', !!state.skipPending);
+}
+
+function initSkipVoiceButton() {
+  if (!ui.skipVoiceBtn) {
+    return;
+  }
+
+  ui.skipVoiceBtn.addEventListener('click', async () => {
+    if (!isSkipActionAvailable()) {
+      return;
+    }
+
+    state.skipPending = true;
+    updateSkipButtonState();
+
+    try {
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.skip_current_reply) {
+        await window.pywebview.api.skip_current_reply();
+      }
+    } catch (_) {
+      // Ignore UI-side errors; runtime handles interruption best-effort.
+    } finally {
+      state.skipPending = false;
+      updateSkipButtonState();
+    }
+  });
+
+  updateSkipButtonState();
 }
 
 function setTranscript(text) {
@@ -903,6 +963,103 @@ function updateModeWaveField(timeSeconds, profile) {
   }
 
   modeWaveField.renderer.render(modeWaveField.scene, modeWaveField.camera);
+}
+
+function initSkipButtonFx() {
+  if (!ui.skipVoiceOrb) {
+    return null;
+  }
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0x000000, 0);
+  ui.skipVoiceOrb.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 10);
+  camera.position.z = 2.4;
+
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.62, 0.14, 18, 48),
+    new THREE.MeshStandardMaterial({
+      color: 0x6fdcff,
+      emissive: 0x1a5f7a,
+      emissiveIntensity: 0.7,
+      metalness: 0.45,
+      roughness: 0.24,
+    }),
+  );
+  scene.add(ring);
+
+  const core = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(0.28, 1),
+    new THREE.MeshStandardMaterial({
+      color: 0xa8f2ff,
+      emissive: 0x22a6c8,
+      emissiveIntensity: 0.8,
+      metalness: 0.28,
+      roughness: 0.2,
+    }),
+  );
+  scene.add(core);
+
+  const keyLight = new THREE.PointLight(0x74e3ff, 1.1, 6.0);
+  keyLight.position.set(1.8, 1.6, 2.2);
+  scene.add(keyLight);
+
+  const rimLight = new THREE.PointLight(0x00ffd9, 0.9, 5.0);
+  rimLight.position.set(-1.6, -1.5, 1.4);
+  scene.add(rimLight);
+
+  const fx = {
+    renderer,
+    scene,
+    camera,
+    ring,
+    core,
+  };
+  resizeSkipButtonFx(fx);
+  return fx;
+}
+
+function resizeSkipButtonFx(fx = skipButtonFx) {
+  if (!fx || !ui.skipVoiceOrb) {
+    return;
+  }
+  const width = Math.max(8, ui.skipVoiceOrb.clientWidth);
+  const height = Math.max(8, ui.skipVoiceOrb.clientHeight);
+  fx.camera.aspect = width / height;
+  fx.camera.updateProjectionMatrix();
+  fx.renderer.setSize(width, height, false);
+}
+
+function updateSkipButtonFx(timeSeconds) {
+  if (!skipButtonFx) {
+    return;
+  }
+
+  const active = isSkipActionAvailable();
+  const speakingBoost = state.mode === 'speaking' ? 1 : 0;
+  const processingBoost = state.mode === 'processing' ? 1 : 0;
+  const pulse = 0.5 + 0.5 * Math.sin(timeSeconds * (2.2 + speakingBoost * 1.6 + processingBoost * 0.6));
+
+  skipButtonFx.ring.rotation.z += 0.014 + speakingBoost * 0.012 + processingBoost * 0.007;
+  skipButtonFx.ring.rotation.x += 0.003;
+  skipButtonFx.core.rotation.x += 0.018;
+  skipButtonFx.core.rotation.y -= 0.015;
+
+  const ringMaterial = skipButtonFx.ring.material;
+  const coreMaterial = skipButtonFx.core.material;
+
+  if (active) {
+    ringMaterial.emissiveIntensity = 0.6 + pulse * (0.35 + speakingBoost * 0.25);
+    coreMaterial.emissiveIntensity = 0.74 + pulse * (0.38 + speakingBoost * 0.2);
+  } else {
+    ringMaterial.emissiveIntensity = 0.22;
+    coreMaterial.emissiveIntensity = 0.26;
+  }
+
+  skipButtonFx.renderer.render(skipButtonFx.scene, skipButtonFx.camera);
 }
 
 function applyMicFeatures(volume, pitch, speaking) {

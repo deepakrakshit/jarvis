@@ -462,6 +462,84 @@ body::before {
   animation: scanBar 2.9s linear infinite;
 }
 
+.skip-voice-btn {
+  position: fixed;
+  right: 30px;
+  bottom: 28px;
+  z-index: 41;
+  width: 94px;
+  height: 34px;
+  border: 1px solid rgba(96, 198, 232, 0.28);
+  border-radius: 999px;
+  background: linear-gradient(145deg, rgba(6, 31, 48, 0.7), rgba(3, 16, 31, 0.82));
+  color: rgba(212, 247, 255, 0.9);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 10px 0 8px;
+  cursor: pointer;
+  box-shadow:
+    inset 0 0 16px rgba(0, 151, 209, 0.12),
+    0 0 18px rgba(0, 169, 232, 0.1);
+  transition:
+    border-color 0.22s ease,
+    box-shadow 0.22s ease,
+    transform 0.18s ease,
+    opacity 0.2s ease;
+}
+
+.skip-voice-btn:hover:not(:disabled) {
+  border-color: rgba(118, 237, 255, 0.56);
+  box-shadow:
+    inset 0 0 20px rgba(0, 178, 241, 0.18),
+    0 0 24px rgba(33, 213, 255, 0.2);
+}
+
+.skip-voice-btn:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+}
+
+.skip-voice-btn:disabled {
+  cursor: default;
+  opacity: 0.52;
+}
+
+.skip-voice-orb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 0 10px rgba(82, 216, 255, 0.34);
+}
+
+.skip-voice-orb canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.skip-voice-label {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.57rem;
+  letter-spacing: 2.2px;
+}
+
+body[data-mode='speaking'] .skip-voice-btn.ready {
+  border-color: rgba(115, 247, 209, 0.66);
+  box-shadow:
+    inset 0 0 20px rgba(34, 214, 176, 0.24),
+    0 0 26px rgba(88, 255, 190, 0.28);
+}
+
+body[data-mode='processing'] .skip-voice-btn.ready {
+  border-color: rgba(255, 207, 116, 0.6);
+  box-shadow:
+    inset 0 0 20px rgba(244, 171, 46, 0.24),
+    0 0 24px rgba(255, 196, 95, 0.24);
+}
+
 .tick-ring {
   position: fixed;
   top: 50%;
@@ -725,5 +803,10 @@ body[data-mode='processing'] .widget {
 
   .w-status {
     width: min(92vw, 420px);
+  }
+
+  .skip-voice-btn {
+    right: 16px;
+    bottom: 20px;
   }
 }

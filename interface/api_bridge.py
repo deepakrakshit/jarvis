@@ -306,6 +306,13 @@ class JarvisBridge:
         self._input_queue.put(clean)
         return {"accepted": True}
 
+    def skip_current_reply(self) -> dict[str, bool]:
+        try:
+            result = self.runtime.skip_current_reply()
+            return {"ok": bool(result.get("skipped"))}
+        except Exception:
+            return {"ok": False}
+
     def _voice_worker(self) -> None:
         while not self._stop.is_set():
             try:
@@ -466,3 +473,6 @@ class JarvisApi:
 
     def submit_voice(self, text: str) -> dict[str, bool]:
         return self._bridge.submit_voice(text)
+
+    def skip_current_reply(self) -> dict[str, bool]:
+        return self._bridge.skip_current_reply()
