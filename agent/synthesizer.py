@@ -88,7 +88,7 @@ class Synthesizer:
         """Filter tool payloads to keep only semantically relevant evidence."""
         cleaned: dict[str, dict[str, Any]] = {}
         query_tokens = self._content_tokens(query)
-        ai_query = "ai" in query.lower() or "artificial intelligence" in query.lower()
+        ai_query = self._is_ai_query(query)
 
         for key, payload in tool_outputs.items():
             if not isinstance(payload, dict):
@@ -107,6 +107,14 @@ class Synthesizer:
                     probe = f"{item.get('title', '')} {item.get('snippet', '')}".strip()
                     if self._is_relevant_text(probe, query_tokens, ai_query=ai_query):
                         filtered_results.append(item)
+
+                # Fallback pass for broad factual/news queries where strict filtering can
+                # be overly aggressive but at least one entity still matches.
+                if not filtered_results and key.startswith("internet_search"):
+                    filtered_results = self._fallback_entity_match_results(
+                        output["results"],
+                        query_tokens,
+                    )
 
                 patched = dict(payload)
                 patched_output = dict(output)
@@ -131,6 +139,48 @@ class Synthesizer:
             cleaned[key] = payload
 
         return cleaned
+
+    @staticmethod
+    def _is_ai_query(text: str) -> bool:
+        lowered = (text or "").lower()
+        return bool(
+            re.search(
+                r"\bai\b|artificial intelligence|machine learning|generative ai|\bllm\b|\bgpt\b",
+                lowered,
+            )
+        )
+
+    @staticmethod
+    def _fallback_entity_match_results(results: list[dict[str, Any]], query_tokens: set[str]) -> list[dict[str, Any]]:
+        generic = {
+            "check",
+            "news",
+            "latest",
+            "recent",
+            "current",
+            "about",
+            "against",
+            "war",
+            "today",
+        }
+        entity_tokens = [
+            token
+            for token in query_tokens
+            if len(token) >= 4 and token not in generic
+        ]
+        if not entity_tokens:
+            return []
+
+        matched: list[dict[str, Any]] = []
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            probe = f"{item.get('title', '')} {item.get('snippet', '')}".lower()
+            if any(token in probe for token in entity_tokens):
+                matched.append(item)
+            if len(matched) >= 3:
+                break
+        return matched
 
     @staticmethod
     def _content_tokens(text: str) -> set[str]:

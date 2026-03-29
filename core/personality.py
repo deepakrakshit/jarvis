@@ -55,13 +55,14 @@ class PersonalityEngine:
     def _strip_cli_artifacts(text: str) -> str:
         cleaned = re.sub(r"(?m)^\s*->\s*", "", text)
         cleaned = re.sub(r"(?m)^\s*\*\s*", "", cleaned)
+        cleaned = re.sub(r"(?im)^\s*assistant\s*:?\s*", "", cleaned)
+        cleaned = re.sub(r"(?im)^\s*jarvis\s*:?\s*", "", cleaned)
         return cleaned
 
     @staticmethod
     def _strip_overformal_address(text: str) -> str:
-        cleaned = re.sub(r"\b[Ss]ir\b,?\s*", "", text)
-        cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
-        return cleaned.strip()
+        # Preserve respectful address terms when explicitly preferred by the user.
+        return text
 
     def sanitize(self, text: str) -> str:
         cleaned = (text or "").strip()
