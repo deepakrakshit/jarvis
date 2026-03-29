@@ -16,7 +16,6 @@ from core.personality import PersonalityEngine
 from core.settings import AppConfig, RESET, SYSTEM_PROMPT, WHITE
 from memory.store import MemoryStore, extract_user_name
 from services.intent_router import IntentRouter
-from services.news_service import NewsService
 from services.network_service import NetworkService
 from services.search_service import SearchService
 from services.weather_service import WeatherService
@@ -43,7 +42,11 @@ class JarvisRuntime:
     WEATHER_RE = re.compile(r"\b(weather|temperature|forecast)\b", re.IGNORECASE)
     NEWS_RE = re.compile(r"\b(news|headline|headlines|breaking)\b", re.IGNORECASE)
     GREETING_RE = re.compile(r"^\s*(hello|hi|hey|yo|good morning|good afternoon|good evening|good night)\b", re.IGNORECASE)
-    WELLBEING_RE = re.compile(r"\b(how are you|how are you feeling|how's it going|how do you feel)\b", re.IGNORECASE)
+    WELLBEING_RE = re.compile(r"\b(how are you|how are you feeling|how's it going|how do you feel|how r u|hru|how ru)\b", re.IGNORECASE)
+    IDENTITY_QUERY_RE = re.compile(
+        r"\b(who are you|what are you|what(?:'s| is) your name|are you human)\b",
+        re.IGNORECASE,
+    )
     NAME_QUERY_RE = re.compile(r"\b(what(?:'s| is)? my name|do you know my name|who am i)\b", re.IGNORECASE)
     NAME_SET_RE = re.compile(r"\b(my name is|name is|call me)\b", re.IGNORECASE)
     CORRECTION_RE = re.compile(
@@ -77,6 +80,11 @@ class JarvisRuntime:
         r"\b(?:i am|i'm|im|my location is|currently in|i live in)\s+([a-zA-Z][a-zA-Z\s\-]{1,80})",
         re.IGNORECASE,
     )
+    DOCUMENT_RE = re.compile(
+        r"\b(analyze|summarize|read|extract|parse|process|open|load|review)\b.*\b(document|pdf|docx|doc|file|image|scan)\b"
+        r"|\b(document|pdf|docx)\b",
+        re.IGNORECASE,
+    )
 
     def __init__(self, config: AppConfig | None = None) -> None:
         self.config = config or AppConfig.from_env(".env")
@@ -98,6 +106,7 @@ class JarvisRuntime:
         self._last_search_query = str(self.memory.get("last_search_query") or "").strip()
         self._last_speedtest_requested_at = float(self.memory.get("last_speedtest_requested_at") or 0.0)
         self._session_location = ""
+        self._api_active = False
 
         self.tts = RealtimePiperTTS(
             self.config,
@@ -108,12 +117,15 @@ class JarvisRuntime:
         self.network_service = NetworkService(self.config, self.personality)
         self.search_service = SearchService(self.config, self.personality)
         self.weather_service = WeatherService(self.config, self.network_service, self.personality, self.humor, self.memory)
-        self.news_service = NewsService(self.config, self.personality, self.search_service)
+
+        # Document Intelligence Service (optional — graceful fallback if deps not installed)
+        self.document_service = self._init_document_service()
+
         self.tool_registry = build_default_tool_registry(
             network_service=self.network_service,
             weather_service=self.weather_service,
-            news_service=self.news_service,
             search_service=self.search_service,
+            document_service=self.document_service,
             get_session_location=self._get_session_location,
             set_session_location=self._set_session_location,
         )
@@ -154,6 +166,16 @@ class JarvisRuntime:
         if declared:
             self._set_session_location(declared)
 
+    def _init_document_service(self) -> object | None:
+        """Lazily initialize DocumentService with graceful fallback."""
+        try:
+            from services.document.document_service import DocumentService
+            return DocumentService(self.config)
+        except ImportError:
+            return None
+        except Exception:
+            return None
+
     def _build_intent_router(self) -> IntentRouter:
         router = IntentRouter()
         router.register(
@@ -182,7 +204,7 @@ class JarvisRuntime:
         )
         router.register(
             name="wellbeing",
-            matcher=lambda text: bool(self.WELLBEING_RE.search(text)),
+            matcher=self._is_wellbeing_request,
             handler=self._handle_wellbeing,
             priority=12,
         )
@@ -198,6 +220,13 @@ class JarvisRuntime:
             handler=self._handle_abuse_feedback,
             priority=14,
         )
+        if self.document_service is not None:
+            router.register(
+                name="document",
+                matcher=self._is_document_request,
+                handler=self._handle_document,
+                priority=16,
+            )
         return router
 
     def _is_name_set_request(self, text: str) -> bool:
@@ -207,6 +236,76 @@ class JarvisRuntime:
         if lowered.endswith("?"):
             return False
         return bool(self.NAME_SET_RE.search(lowered))
+
+    def _is_wellbeing_request(self, text: str) -> bool:
+        lowered = (text or "").strip().lower()
+        if not lowered:
+            return False
+
+        normalized = re.sub(r"[^a-z0-9\s']", " ", lowered)
+        normalized = re.sub(r"\s+", " ", normalized).strip()
+        if self.WELLBEING_RE.search(normalized):
+            return True
+
+        compact = normalized.replace(" ", "")
+        if any(token in compact for token in ("hru", "howru", "howareyou")):
+            return True
+
+        # Handles noisy STT prefixes like "vhow r u".
+        if re.search(r"\b[a-z]how\s*(?:are|r)\s*(?:you|u)\b", normalized):
+            return True
+
+        return False
+
+    @staticmethod
+    def _assistant_identity_fallback() -> str:
+        return "I am JARVIS, your assistant, Sir. I am doing well and ready to help."
+
+    @staticmethod
+    def _strip_role_labels(text: str) -> str:
+        cleaned = re.sub(r"(?im)^\s*assistant\s*:?\s*", "", str(text or ""))
+        cleaned = re.sub(r"(?im)^\s*jarvis\s*:?\s*", "", cleaned)
+        return cleaned.strip()
+
+    @staticmethod
+    def _looks_like_identity_hallucination(text: str) -> bool:
+        lowered = str(text or "").strip().lower()
+        if not lowered:
+            return False
+
+        hard_triggers = (
+            "i am tony stark",
+            "i'm tony stark",
+            "my name is tony stark",
+            "i am john smith",
+            "i'm john smith",
+            "my name is john smith",
+            "ceo of stark industries",
+            "billionaire inventor",
+        )
+        if any(trigger in lowered for trigger in hard_triggers):
+            return True
+
+        if re.search(r"\b(?:i am|i'm|my name is)\s+(?:a\s+)?\d{1,3}-year-old\b", lowered):
+            return True
+
+        if re.search(
+            r"\b(?:i am|i'm|my name is)\s+(?:a\s+)?(software engineer|developer|doctor|teacher|student)\b",
+            lowered,
+        ):
+            return True
+
+        return False
+
+    def _enforce_assistant_identity(self, text: str, *, user_text: str = "") -> str:
+        cleaned = self._strip_role_labels(text)
+        if self._looks_like_identity_hallucination(cleaned):
+            return self._assistant_identity_fallback()
+
+        if self.IDENTITY_QUERY_RE.search(user_text or "") and "jarvis" not in cleaned.lower():
+            return self._assistant_identity_fallback()
+
+        return cleaned
 
     def _is_pure_greeting(self, text: str) -> bool:
         lowered = (text or "").strip().lower()
@@ -682,16 +781,94 @@ class JarvisRuntime:
             return None
         return (
             f"Known user profile: user_name={user_name}. "
-            "Use this naturally and accurately in relevant replies."
+            "Use this naturally and accurately in relevant replies. "
+            "When addressing the user directly, prefer 'Sir' and avoid first-name address unless explicitly requested."
         )
 
+    @staticmethod
+    def _preferred_address() -> str:
+        return "Sir"
+
+    def _groq_quick_reply(
+        self,
+        *,
+        user_text: str,
+        reply_goal: str,
+        fallback: str,
+        max_tokens: int = 120,
+        temperature: float = 0.75,
+    ) -> str:
+        api_key = (self.config.groq_api_key or "").strip()
+        if not api_key:
+            return fallback
+
+        preferred_address = self._preferred_address()
+        stored_name = (self.memory.get("user_name") or "").strip()
+        memory_line = f"Stored user name for memory only: {stored_name}." if stored_name else ""
+
+        system_prompt = (
+            "You are JARVIS. Write a short, natural, warm, confident reply. "
+            "Sound attractive and human, not robotic. "
+            "Keep it 1-2 lines, no bullet points, no emojis. "
+            f"Address the user as {preferred_address}. Never address by first name."
+        )
+        user_prompt = (
+            f"User said: {user_text}\n"
+            f"Goal: {reply_goal}\n"
+            f"Preferred address: {preferred_address}.\n"
+            f"{memory_line}\n"
+            "Return only the final reply text."
+        )
+
+        try:
+            response = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self.config.groq_model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "temperature": temperature,
+                    "stream": False,
+                    "max_tokens": max_tokens,
+                },
+                timeout=15,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            choices = payload.get("choices") if isinstance(payload, dict) else None
+            if isinstance(choices, list) and choices:
+                message = choices[0].get("message") if isinstance(choices[0], dict) else None
+                content = str((message or {}).get("content") or "").strip()
+                if content:
+                    return self._enforce_assistant_identity(content, user_text=user_text)
+        except Exception:
+            return fallback
+
+        return fallback
+
     def _handle_greeting(self, _text: str) -> str:
-        user_name = (self.memory.get("user_name") or "").strip() or None
-        greeting = self.personality.greeting(name=user_name)
-        return f"{greeting} What can I help you with?"
+        user_text = (_text or "hello").strip() or "hello"
+        fallback = "Good to hear from you, Sir. What should we tackle first?"
+        return self._groq_quick_reply(
+            user_text=user_text,
+            reply_goal="Greet the user and invite the next task in an engaging way.",
+            fallback=fallback,
+        )
 
     def _handle_wellbeing(self, _text: str) -> str:
-        return "Doing well and fully focused. What should we tackle next?"
+        user_text = (_text or "how are you?").strip() or "how are you?"
+        fallback = "Doing great and locked in, Sir. What should we tackle next?"
+        return self._groq_quick_reply(
+            user_text=user_text,
+            reply_goal="Reply to how-are-you warmly, then pivot to helping with the next task.",
+            fallback=fallback,
+        )
 
     def _handle_search_policy_feedback(self, _text: str) -> str:
         self.memory.set("prefer_web_for_facts", True)
@@ -709,7 +886,7 @@ class JarvisRuntime:
             return "I caught that you wanted to set your name, but I missed the exact wording."
 
         self.memory.set("user_name", name)
-        return f"Noted. I will call you {name}."
+        return "Noted. I will keep that on file and address you as Sir."
 
     def _handle_user_name_query(self, _text: str) -> str:
         name = (self.memory.get("user_name") or "").strip()
@@ -814,10 +991,6 @@ class JarvisRuntime:
         self._remember_fact(source="weather", query=text, handler=self.weather_service.get_weather_brief)
         return self.weather_service.get_weather_brief(text)
 
-    def _handle_news(self, text: str) -> str:
-        self._remember_fact(source="news", query=text, handler=self.news_service.get_news_brief)
-        return self.news_service.get_news_brief(text)
-
     def _handle_search(self, text: str) -> str:
         result = self.agent_loop.run(text)
         if result.handled and result.response:
@@ -834,6 +1007,64 @@ class JarvisRuntime:
     def _handle_temporal(self, text: str) -> str:
         self._remember_fact(source="temporal", query=text, handler=lambda _q: self.network_service.get_temporal_snapshot())
         return self.network_service.get_temporal_snapshot()
+
+    def _is_document_request(self, text: str) -> bool:
+        """Detect user requests to analyze a document file."""
+        lowered = (text or "").strip().lower()
+        if not lowered:
+            return False
+        # Don't intercept if document service is not available
+        if self.document_service is None:
+            return False
+        return bool(self.DOCUMENT_RE.search(lowered))
+
+    def _handle_document(self, text: str) -> str:
+        """Handle document analysis requests.
+
+        IMPORTANT: The file picker is opened here by the SYSTEM, not the LLM.
+        The LLM only decides this intent needs handling; it never triggers UI directly.
+        """
+        if self.document_service is None:
+            return "Document analysis is not available. Install the required dependencies first."
+
+        # System opens the file picker — LLM has no involvement in this step
+        from services.document.file_selector import select_file, validate_file_path
+
+        self._emit_mode("processing")
+        self._emit_text_delta("Opening file selector...")
+
+        # Try GUI picker first; fall back to CLI
+        file_path = select_file(prefer_gui=True)
+
+        if not file_path:
+            return "No document was selected. Please say 'analyze document' again and choose a file."
+
+        # Validate before running the pipeline
+        validated_path, error = validate_file_path(file_path)
+        if error:
+            return f"I cannot process that file: {error}"
+
+        # Emit processing status
+        from pathlib import Path
+        file_name = Path(validated_path).name
+        self._emit_text_delta(f"Analyzing {file_name}...")
+        self._emit_text_delta(
+            " This may take few moments, stay put."
+        )
+
+        try:
+            result = self.document_service.analyze_for_display(
+                validated_path, user_query=text
+            )
+        except Exception as exc:
+            return f"Document analysis encountered an error: {exc}"
+
+        self._remember_fact(
+            source="document",
+            query=text,
+            handler=lambda _q: self.document_service.analyze_for_display(validated_path, user_query=_q),
+        )
+        return result
 
     def set_event_callbacks(
         self,
@@ -861,6 +1092,7 @@ class JarvisRuntime:
                 pass
 
     def _emit_api_activity(self, active: bool) -> None:
+        self._api_active = bool(active)
         if self._on_api_activity:
             try:
                 self._on_api_activity(active)
@@ -871,7 +1103,22 @@ class JarvisRuntime:
         self._emit_mode("speaking")
 
     def _handle_tts_stop(self) -> None:
+        if self._api_active:
+            self._emit_mode("processing")
+            return
         self._emit_mode("listening")
+
+    def skip_current_reply(self) -> dict[str, object]:
+        turn_id = self.tts.interrupt()
+        if self._api_active:
+            self._emit_mode("processing")
+        else:
+            self._emit_mode("listening")
+        return {
+            "skipped": True,
+            "turn_id": turn_id,
+            "api_active": self._api_active,
+        }
 
     def _trim_history(self) -> None:
         if len(self.messages) > (self.config.max_context_messages + 1):
@@ -971,7 +1218,8 @@ class JarvisRuntime:
         persist_user: bool,
         stream_to_stdout: bool,
     ) -> str:
-        finalized = self.personality.finalize(response_text, user_text=user_text)
+        normalized_response = self._enforce_assistant_identity(response_text, user_text=user_text)
+        finalized = self.personality.finalize(normalized_response, user_text=user_text)
 
         if persist_user:
             self.messages.append({"role": "user", "content": user_text})
@@ -981,11 +1229,14 @@ class JarvisRuntime:
         self._emit_mode("processing")
         self._emit_api_activity(False)
         self._emit_text_delta(finalized)
-        self.tts.enqueue_text(finalized, turn_id)
-        self.tts.wait_for_turn_completion(
-            turn_id,
-            timeout_s=self.config.tts_turn_completion_timeout_seconds,
-        )
+        queued_any_speech = self.tts.enqueue_text(finalized, turn_id)
+        if queued_any_speech:
+            self.tts.wait_for_turn_completion(
+                turn_id,
+                timeout_s=self.config.tts_turn_completion_timeout_seconds,
+            )
+        else:
+            self._emit_mode("listening")
 
         if stream_to_stdout:
             print(f"{WHITE}JARVIS:{RESET} {finalized}")
@@ -1131,9 +1382,9 @@ class JarvisRuntime:
                         if self.config.tts_first_chunk_delay > 0:
                             time.sleep(self.config.tts_first_chunk_delay)
                         first_voice_chunk = False
-                        queued_any_speech = True
-                        self.tts.enqueue_text(first_chunk, turn_id)
-                        last_chunk_queued_at = time.perf_counter()
+                        if self.tts.enqueue_text(first_chunk, turn_id):
+                            queued_any_speech = True
+                            last_chunk_queued_at = time.perf_counter()
 
                 while True:
                     chunk_to_speak, speak_buffer = self._next_speech_chunk(speak_buffer, final=False)
@@ -1143,9 +1394,9 @@ class JarvisRuntime:
                     if first_voice_chunk and self.config.tts_first_chunk_delay > 0:
                         time.sleep(self.config.tts_first_chunk_delay)
                     first_voice_chunk = False
-                    queued_any_speech = True
-                    self.tts.enqueue_text(chunk_to_speak, turn_id)
-                    last_chunk_queued_at = time.perf_counter()
+                    if self.tts.enqueue_text(chunk_to_speak, turn_id):
+                        queued_any_speech = True
+                        last_chunk_queued_at = time.perf_counter()
 
                 if speak_buffer.strip() and (time.perf_counter() - last_chunk_queued_at) >= self.EARLY_CHUNK_MAX_WAIT_SECONDS:
                     early_chunk, speak_buffer = self._early_speech_chunk(speak_buffer)
@@ -1153,9 +1404,9 @@ class JarvisRuntime:
                         if first_voice_chunk and self.config.tts_first_chunk_delay > 0:
                             time.sleep(self.config.tts_first_chunk_delay)
                         first_voice_chunk = False
-                        queued_any_speech = True
-                        self.tts.enqueue_text(early_chunk, turn_id)
-                        last_chunk_queued_at = time.perf_counter()
+                        if self.tts.enqueue_text(early_chunk, turn_id):
+                            queued_any_speech = True
+                            last_chunk_queued_at = time.perf_counter()
         finally:
             self._emit_api_activity(False)
 
@@ -1164,8 +1415,8 @@ class JarvisRuntime:
                 time.sleep(self.config.tts_first_chunk_delay)
             tail_chunk, _ = self._next_speech_chunk(speak_buffer, final=True)
             if tail_chunk:
-                queued_any_speech = True
-                self.tts.enqueue_text(tail_chunk, turn_id)
+                if self.tts.enqueue_text(tail_chunk, turn_id):
+                    queued_any_speech = True
 
         raw_text = full_text.strip().strip('"')
         if not full_text.strip():
@@ -1173,8 +1424,8 @@ class JarvisRuntime:
             full_text = raw_text
             if stream_to_stdout:
                 print(raw_text, end="", flush=True)
-            self.tts.enqueue_text(raw_text, turn_id)
-            queued_any_speech = True
+            if self.tts.enqueue_text(raw_text, turn_id):
+                queued_any_speech = True
 
         if stream_to_stdout:
             print()
@@ -1182,6 +1433,7 @@ class JarvisRuntime:
         if self._is_conceptual_query(normalized_text) and not self._is_explicit_detail_request(normalized_text):
             raw_text = self._briefen_response(raw_text)
 
+        raw_text = self._enforce_assistant_identity(raw_text, user_text=normalized_text)
         finalized = self.personality.finalize(raw_text, user_text=text)
 
         if persist_user:
@@ -1200,9 +1452,23 @@ class JarvisRuntime:
         return finalized
 
     def greet(self, *, stream_to_stdout: bool = True) -> str:
-        user_name = (self.memory.get("user_name") or "").strip() or None
-        greeting = self.personality.greeting(name=user_name, now=datetime.datetime.now())
-        greeting = f"{greeting} Ready when you are."
+        current_hour = datetime.datetime.now().hour
+        day_period = "day"
+        if current_hour < 12:
+            day_period = "morning"
+        elif current_hour < 18:
+            day_period = "afternoon"
+        else:
+            day_period = "evening"
+
+        greeting = self._groq_quick_reply(
+            user_text=f"startup greeting for {day_period}",
+            reply_goal=(
+                "Generate a startup greeting for the desktop assistant. "
+                "Make it crisp, polished, and welcoming."
+            ),
+            fallback="Ready when you are, Sir. What should we work on first?",
+        )
         return self._respond_local(
             user_text="",
             response_text=greeting,

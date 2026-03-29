@@ -5,3 +5,10 @@ pywebview
 psutil
 pathvalidate
 speedtest-cli
+
+# Document Analysis Dependencies
+PyMuPDF
+pdfplumber
+python-docx
+paddleocr
+paddlepaddle

@@ -5,9 +5,13 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from services.network_service import NetworkService
-from services.news_service import NewsService
 from services.search_service import SearchService
 from services.weather_service import WeatherService
+
+try:
+    from services.document.document_service import DocumentService
+except ImportError:
+    DocumentService = None  # type: ignore[assignment,misc]
 
 ToolFn = Callable[[dict[str, Any]], Any]
 
@@ -114,8 +118,8 @@ def build_default_tool_registry(
     *,
     network_service: NetworkService,
     weather_service: WeatherService,
-    news_service: NewsService,
     search_service: SearchService,
+    document_service: object | None = None,
     get_session_location: Callable[[], str | None] | None = None,
     set_session_location: Callable[[str], None] | None = None,
 ) -> ToolRegistry:
@@ -174,11 +178,6 @@ def build_default_tool_registry(
             allow_ip_fallback=True,
         )
 
-    def news_tool(args: dict[str, Any]) -> Any:
-        query = str(args.get("query") or "").strip() or "latest news"
-        max_results = int(args.get("max_results") or 5)
-        return news_service.get_news_items(query, max_results=max_results)
-
     def internet_search_tool(args: dict[str, Any]) -> Any:
         query = str(args.get("query") or "").strip()
         max_results = int(args.get("max_results") or 5)
@@ -228,25 +227,8 @@ def build_default_tool_registry(
 
     registry.register(
         ToolDefinition(
-            name="news",
-            description="Fetch latest headline search results for a news topic.",
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string"},
-                    "max_results": {"type": "integer"},
-                },
-            },
-            fn=news_tool,
-            timeout_seconds=20.0,
-            safe_to_parallelize=True,
-        )
-    )
-
-    registry.register(
-        ToolDefinition(
             name="internet_search",
-            description="Fetch raw web search results (title, snippet, link) for factual queries.",
+            description="Fetch raw web search results (title, snippet, link) for factual, news, and internet lookup queries.",
             input_schema={
                 "type": "object",
                 "required": ["query"],
@@ -331,5 +313,38 @@ def build_default_tool_registry(
             safe_to_parallelize=True,
         )
     )
+
+    # ── Document Tool ───────────────────────────────────────────────────
+    if document_service is not None and DocumentService is not None:
+        _doc_service = document_service
+
+        def document_tool(args: dict[str, Any]) -> Any:
+            file_path = str(args.get("file_path") or "").strip()
+            query = str(args.get("query") or "").strip()
+            if not file_path:
+                return {
+                    "success": False,
+                    "error": "No file path provided. The system must select a file first.",
+                    "requires_file": True,
+                }
+            return _doc_service.analyze(file_path, user_query=query)
+
+        registry.register(
+            ToolDefinition(
+                name="document",
+                description="Analyze a document (PDF, DOCX, or image). Extracts content, produces structured summary, insights, key points, and tables.",
+                input_schema={
+                    "type": "object",
+                    "required": ["file_path"],
+                    "properties": {
+                        "file_path": {"type": "string"},
+                        "query": {"type": "string"},
+                    },
+                },
+                fn=document_tool,
+                timeout_seconds=180.0,
+                safe_to_parallelize=False,
+            )
+        )
 
     return registry

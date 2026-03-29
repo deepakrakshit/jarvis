@@ -82,6 +82,13 @@ class AgentLoop:
         "holiday",
         "prime minister",
         "president",
+        "document",
+        "analyze",
+        "pdf",
+        "docx",
+        "summarize this",
+        "extract from",
+        "read this",
     )
 
     def __init__(
