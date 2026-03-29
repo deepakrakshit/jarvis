@@ -282,19 +282,20 @@ class RealtimePiperTTS:
         cleaned = re.sub(r"\s+", " ", cleaned)
         return cleaned.strip()
 
-    def enqueue_text(self, chunk: str, turn_id: int) -> None:
+    def enqueue_text(self, chunk: str, turn_id: int) -> bool:
         text = " ".join(chunk.strip().split())
         text = text.strip('"')
         text = self._prepare_for_tts(text)
         if not text:
-            return
+            return False
 
         with self._turn_lock:
             if turn_id != self._turn_id:
-                return
+                return False
             self._pending_chunks += 1
 
         self._speech_queue.put((turn_id, text))
+        return True
 
     def wait_for_turn_completion(self, turn_id: int, timeout_s: float = 25.0) -> None:
         start = time.time()
