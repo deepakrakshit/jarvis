@@ -8,7 +8,7 @@
 ## ⚡ Fast Validation
 
 ```bash
-python -m compileall agent core services
+python -m compileall app agent core services interface voice
 ```
 
 ---
@@ -17,57 +17,66 @@ python -m compileall agent core services
 
 ### 1. Weather Reliability
 
-* location override
-* session memory
-* mismatch retry
+* location override from user input
+* session location carry-over (`i am in ...` then `weather?`)
+* mismatch recovery behavior
 
 ---
 
-### 2. Tool Refusal
+### 2. Live-Data Tool Refusal
 
 ```text
-weather without tools
+weather without using tools
 ```
 
-👉 Must refuse
+Must refuse with a safe response.
 
 ---
 
-### 3. Multi-Tool Execution
+### 3. Search/Factual Accuracy
 
 ```text
-weather + news + ip
+latest ai news
+who won ipl 2025 season
 ```
 
-👉 Must run in parallel
+Must route through internet evidence and synthesize cleanly.
 
 ---
 
-### 4. Routing Accuracy
+### 4. Document Intelligence Flow
 
-* greeting → no agent
-* factual → search
-* system → tool
+* Trigger with `analyze document` or `summarize this pdf`
+* Validate file picker behavior and path validation
+* Confirm parser/OCR/vision fallback produces stable summary output
 
 ---
 
-### 5. Synthesizer Quality
+### 5. Identity + Personality Safety
 
-* no irrelevant data
-* no hallucination
-* clean formatting
+* identity queries must return JARVIS identity
+* persona drift outputs must be corrected by guardrails
+* role prefixes like `assistant:` should be cleaned in final output
+
+---
+
+### 6. Voice/UX Runtime
+
+* TTS starts/stops cleanly across long responses
+* SKIP button interrupts active speech and restores listening/processing mode correctly
 
 ---
 
 ## 🚨 Regression Guardrails
 
-* ❌ No stale outputs
-* ❌ No duplicate tool calls
-* ❌ No wrong location data
-* ❌ No fake real-time responses
+* ❌ No stale outputs presented as fresh
+* ❌ No duplicate tool calls from planner/executor drift
+* ❌ No wrong location weather results
+* ❌ No fake real-time claims
+* ❌ No unsafe document path handling
 
 ---
 
 ## 🎯 Goal
 
-> **Break the system — then fix it.**
+> **Break the system responsibly, then harden it.**

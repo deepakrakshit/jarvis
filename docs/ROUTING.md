@@ -9,52 +9,71 @@
 
 Jarvis uses **priority-based routing**:
 
-1. ⚡ Fast-path (no agent)
-2. ⚙️ Deterministic tools
-3. 🌐 Web search + synthesis
-4. 🧠 LLM fallback
+1. ⚡ Local intent router (fast-path)
+2. ⚙️ Agent loop (plan → validate → execute → synthesize)
+3. 🌐 Tool-backed factual answer synthesis
+4. 🧠 Streamed LLM fallback when no tool route is suitable
 
 ---
 
-## ⚡ Fast-Path (Bypass Agent)
+## ⚡ Local Intent Router
 
-Handled instantly:
+Handled before the agent loop:
 
-* greetings
-* identity
-* casual conversation
+* correction feedback
+* user name set/query
+* greetings and wellbeing
+* search-policy feedback
+* abuse feedback redirect
+* document intent (when document service is available)
 
 ---
 
-## ⚙️ Tool Routing
+## ⚙️ Agent/Tool Routing
 
 Triggered when query involves:
 
 * weather
-* IP
-* system status
+* internet/news lookups
+* factual verification
 * speed test
-* news
-* internet search
+* IP/location
+* system status/time snapshots
+* update checks
+
+The agent planner emits minimal tool plans, validator enforces schemas, and executor handles retries/timeouts.
 
 ---
 
 ## 🌐 Factual Routing
 
-Jarvis uses search for:
+Jarvis routes current/factual questions through internet evidence and synthesis, for example:
 
-* current events
-* politics
-* sports results
-* verification queries
+* office holder queries
+* recent events
+* season winners/results
+* breaking/news-like prompts
+
+---
+
+## 📄 Document Routing
+
+Document-like prompts (analyze/summarize/read PDF/DOCX/image) are routed to the document branch:
+
+* file selection is system-controlled
+* path/type/size validation runs first
+* parser/OCR/vision/fusion pipeline generates final summary
+
+If optional dependencies are unavailable, Jarvis returns a graceful availability message.
 
 ---
 
 ## 🛡️ Anti-Hallucination Rules
 
-* Real-time data MUST use tools
-* If tools are forbidden → REFUSE
-* No guessing allowed
+* Real-time/factual data must come from tools or web evidence
+* Assistant identity is enforced on final responses
+* Disallowed-tool requests for live data are refused
+* Ambiguous prompts should request clarification
 
 ---
 
@@ -63,10 +82,10 @@ Jarvis uses search for:
 Example:
 
 ```text
-"2025 season"
+2025 season
 ```
 
-👉 Jarvis asks clarification instead of guessing
+Jarvis asks for context (for example, IPL 2025 season) instead of guessing.
 
 ---
 

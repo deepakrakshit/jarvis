@@ -9,6 +9,8 @@
 ```text
 weather in delhi
 weather in mumbai
+i am in greater noida
+weather?
 ```
 
 ---
@@ -18,16 +20,20 @@ weather in mumbai
 ```text
 search on internet latest ai news
 who is the PM of India
+who won ipl 2025 season
 ```
 
 ---
 
-## 📰 News
+## 📰 News-Style Queries
 
 ```text
 latest ai news
 technology news
+latest india headlines
 ```
+
+News prompts are routed through internet search evidence.
 
 ---
 
@@ -45,6 +51,8 @@ network location
 ```text
 system status
 run speed test
+what time is it
+what is today's date
 ```
 
 ---
@@ -54,7 +62,22 @@ run speed test
 ```text
 i am in greater noida
 what is my location
+my name is deepak
+what is my name
 ```
+
+---
+
+## 📄 Document Intelligence
+
+```text
+analyze document
+summarize this pdf
+read this docx file
+extract key points from this file
+```
+
+When triggered, Jarvis opens a system file selector, validates the path, then runs the document pipeline.
 
 ---
 
@@ -62,6 +85,7 @@ what is my location
 
 ```text
 who are you
+how r u
 explain how internet works
 ```
 
@@ -73,7 +97,7 @@ explain how internet works
 weather without using tools
 ```
 
-👉 Jarvis will refuse
+Jarvis refuses live-data answers when tools are explicitly disallowed.
 
 ---
 
@@ -81,12 +105,19 @@ weather without using tools
 
 ```text
 weather in delhi and latest ai news
+what is my ip and latest ai updates
 ```
 
-👉 handled via agent planning
+Handled through agent planning and synthesis.
+
+---
+
+## 🎤 Voice UX Control
+
+Desktop UI includes a **SKIP** button that safely interrupts current TTS playback.
 
 ---
 
 ## 🧠 Tip
 
-> Combine queries for powerful results
+> Combine related queries for richer answers with fewer turns.
