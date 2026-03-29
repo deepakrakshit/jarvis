@@ -1,9 +1,37 @@
 from __future__ import annotations
 
 import argparse
+import os
 import pathlib
 import threading
 import sys
+
+
+def _maybe_reexec_into_project_venv() -> None:
+    """Ensure direct app/main.py launches use the project's local venv."""
+    if os.getenv("JARVIS_VENV_REEXECED") == "1":
+        return
+
+    project_root = pathlib.Path(__file__).resolve().parents[1]
+    candidates = (
+        project_root / "venv" / "Scripts" / "python.exe",
+        project_root / ".venv" / "Scripts" / "python.exe",
+    )
+    target = next((path for path in candidates if path.is_file()), None)
+    if target is None:
+        return
+
+    current = pathlib.Path(sys.executable).resolve()
+    target_resolved = target.resolve()
+    if current == target_resolved:
+        return
+
+    os.environ["JARVIS_VENV_REEXECED"] = "1"
+    script = pathlib.Path(__file__).resolve()
+    os.execv(str(target_resolved), [str(target_resolved), str(script), *sys.argv[1:]])
+
+
+_maybe_reexec_into_project_venv()
 
 import requests
 
