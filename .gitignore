@@ -84,3 +84,6 @@ secrets/
 credentials/
 *.key
 *.pem
+
+# Temporary benchmarks
+tmp_bench/
