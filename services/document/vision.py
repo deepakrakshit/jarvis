@@ -1,4 +1,4 @@
-"""Vision client for document image understanding via OpenRouter.
+"""Vision client for document image understanding via Groq.
 
 This module is responsible for vision-only extraction from document images.
 It enforces strict JSON outputs and includes retry/fallback behavior for
@@ -9,10 +9,8 @@ from __future__ import annotations
 
 import base64
 import io
-import json
 import logging
 import os
-import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -24,8 +22,21 @@ import requests
 from requests.adapters import HTTPAdapter
 
 from core.env import load_env_file
+from services.document.vision_payload import (
+    build_error_payload,
+    clean_json_text,
+    extract_message_content,
+    has_payload_signal,
+    merge_attempted_models,
+    merge_notes,
+    normalize_payload,
+    normalize_str_list,
+    parse_json_payload,
+)
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_GROQ_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
 _VISION_PROMPT = """You are a document vision extractor.
 Analyze the provided document image and return ONLY valid JSON with this exact schema:
@@ -48,24 +59,19 @@ Rules:
 @dataclass(frozen=True)
 class VisionConfig:
     api_key: str
-    api_url: str = "https://openrouter.ai/api/v1/chat/completions"
-    primary_model: str = "google/gemma-3-27b-it:free"
-    fallback_models: tuple[str, ...] = (
-        "google/gemma-3-12b-it:free",
-        "google/gemma-3-4b-it:free",
-    )
+    api_url: str = "https://api.groq.com/openai/v1/chat/completions"
+    primary_model: str = _DEFAULT_GROQ_VISION_MODEL
+    fallback_models: tuple[str, ...] = ()
     timeout_seconds: float = 25.0
     max_retries_per_model: int = 0
     retry_backoff_seconds: float = 1.2
     fast_fail_on_429: bool = True
     min_retry_delay_seconds: float = 0.35
     max_retry_delay_seconds: float = 4.0
-    app_name: str = "jarvis-document-intelligence"
-    referer: str = "https://localhost"
 
 
 class VisionProcessor:
-    """OpenRouter-backed vision processor with strict JSON extraction."""
+    """Groq-backed vision processor with strict JSON extraction."""
 
     _SECOND_PASS_DELAY_SECONDS = 0.45
     _SECOND_PASS_MAX_IMAGE_BYTES = 2_400_000
@@ -74,6 +80,9 @@ class VisionProcessor:
         self._config = config
         self._thread_local = threading.local()
         self._runtime_api_key = str(config.api_key or "").strip()
+        self._api_key_hydration_attempted = False
+        self._api_key_lock = threading.Lock()
+        self._model_chain = self._resolve_model_chain(config)
 
     def _get_session(self) -> requests.Session:
         session = getattr(self._thread_local, "session", None)
@@ -125,6 +134,7 @@ class VisionProcessor:
         *,
         mime_type: str = "image/png",
         source: str = "image",
+        allow_second_pass: bool = True,
     ) -> dict[str, Any]:
         """Analyze image bytes and return normalized strict JSON payload."""
         if not image_bytes:
@@ -137,14 +147,17 @@ class VisionProcessor:
         api_key = self._resolve_api_key()
         if not api_key:
             return self._error_payload(
-                warning="OpenRouter API key is missing. Vision analysis skipped.",
-                error="openrouter_api_key_missing",
+                warning="GROQ_API_KEY is missing. Vision analysis skipped.",
+                error="vision_api_key_missing",
                 source=source,
             )
 
         data_uri = self._to_data_uri(image_bytes, mime_type)
         first_pass = self._run_with_fallback_models(data_uri=data_uri, source=source, api_key=api_key)
         if self._has_payload_signal(first_pass):
+            return first_pass
+
+        if not allow_second_pass:
             return first_pass
 
         if not self._should_retry_second_pass(first_pass):
@@ -171,21 +184,31 @@ class VisionProcessor:
         if self._runtime_api_key:
             return self._runtime_api_key
 
-        # Fallback to project-root .env to handle long-lived runtimes that were
-        # started before environment variables were fully populated.
-        env_path = Path(__file__).resolve().parents[2] / ".env"
-        load_env_file(str(env_path))
+        with self._api_key_lock:
+            if self._runtime_api_key:
+                return self._runtime_api_key
 
-        hydrated = str(os.getenv("OPENROUTER_API_KEY") or "").strip()
-        if hydrated:
-            self._runtime_api_key = hydrated
-        return self._runtime_api_key
+            if self._api_key_hydration_attempted:
+                return ""
+
+            self._api_key_hydration_attempted = True
+
+            # Fallback to project-root .env to handle long-lived runtimes that were
+            # started before environment variables were fully populated.
+            env_path = Path(__file__).resolve().parents[2] / ".env"
+            load_env_file(str(env_path))
+
+            hydrated = str(os.getenv("GROQ_API_KEY") or "").strip()
+            if hydrated:
+                self._runtime_api_key = hydrated
+            return self._runtime_api_key
 
     def analyze_images(
         self,
         images: list[dict[str, Any]],
         *,
         max_workers: int = 3,
+        allow_second_pass: bool = False,
     ) -> list[dict[str, Any]]:
         """Analyze multiple images concurrently."""
         if not images:
@@ -196,7 +219,7 @@ class VisionProcessor:
 
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
             future_to_idx = {
-                executor.submit(self._analyze_single_item, item): idx
+                executor.submit(self._analyze_single_item, item, allow_second_pass=allow_second_pass): idx
                 for idx, item in enumerate(images)
             }
             for future in as_completed(future_to_idx):
@@ -213,7 +236,7 @@ class VisionProcessor:
 
         return [item for item in outputs if item is not None]
 
-    def _analyze_single_item(self, item: dict[str, Any]) -> dict[str, Any]:
+    def _analyze_single_item(self, item: dict[str, Any], *, allow_second_pass: bool) -> dict[str, Any]:
         image_bytes = item.get("bytes")
         if not isinstance(image_bytes, (bytes, bytearray)):
             return self._error_payload(
@@ -226,10 +249,46 @@ class VisionProcessor:
             bytes(image_bytes),
             mime_type=str(item.get("mime_type") or "image/png"),
             source=str(item.get("source") or "image"),
+            allow_second_pass=allow_second_pass,
         )
 
+    @staticmethod
+    def _normalize_model_id(model: str) -> str:
+        candidate = str(model or "").strip()
+        if not candidate:
+            return ""
+
+        # OpenRouter-style suffixes like ":free" are invalid for Groq endpoint.
+        if ":" in candidate:
+            candidate = candidate.split(":", 1)[0].strip()
+
+        return candidate
+
+    def _resolve_model_chain(self, config: VisionConfig) -> list[str]:
+        chain: list[str] = []
+
+        raw_primary = str(config.primary_model or "").strip()
+        normalized_primary = self._normalize_model_id(raw_primary)
+        if not normalized_primary or ":free" in raw_primary.lower():
+            normalized_primary = _DEFAULT_GROQ_VISION_MODEL
+
+        chain.append(normalized_primary)
+
+        for item in config.fallback_models:
+            raw = str(item or "").strip()
+            if not raw:
+                continue
+            if ":free" in raw.lower():
+                # Ignore OpenRouter-only free routing tags on Groq endpoint.
+                continue
+            normalized = self._normalize_model_id(raw)
+            if normalized and normalized not in chain:
+                chain.append(normalized)
+
+        return chain
+
     def _run_with_fallback_models(self, *, data_uri: str, source: str, api_key: str) -> dict[str, Any]:
-        model_chain = [self._config.primary_model, *self._config.fallback_models]
+        model_chain = list(self._model_chain)
         attempted_models: list[str] = []
         last_error = ""
         rate_limit_errors = 0
@@ -272,12 +331,16 @@ class VisionProcessor:
                 break
 
         if rate_limit_errors and rate_limit_errors >= total_attempts:
+            logger.warning(
+                "Vision model chain exhausted due to rate limiting (429). models=%s",
+                ",".join(attempted_models),
+            )
             return self._error_payload(
                 warning=(
                     "Vision API is rate-limited (HTTP 429). "
                     "Proceeding with OCR-focused fallback for speed."
                 ),
-                error="openrouter_http_429",
+                error="vision_http_429",
                 source=source,
                 attempted_models=attempted_models,
             )
@@ -293,8 +356,6 @@ class VisionProcessor:
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": self._config.referer,
-            "X-Title": self._config.app_name,
         }
 
         strict_payload = self._build_payload(model=model, data_uri=data_uri, strict_json=True)
@@ -308,7 +369,7 @@ class VisionProcessor:
             if compat_raw:
                 warning = "vision_compat_payload_recovered_after_http_400"
                 return compat_raw, compat_status, warning
-            return "", compat_status, compat_error or error_text or "openrouter_http_400"
+            return "", compat_status, compat_error or error_text or "vision_http_400"
 
         return "", status_code, error_text
 
@@ -317,7 +378,7 @@ class VisionProcessor:
         payload = {
             "model": model,
             "temperature": 0,
-            "max_tokens": 1400 if strict_json else 1200,
+            "max_tokens": 900 if strict_json else 700,
             "messages": [
                 {
                     "role": "user",
@@ -351,7 +412,7 @@ class VisionProcessor:
             )
             status_code = int(response.status_code)
             if status_code >= 400:
-                return "", status_code, f"openrouter_http_{status_code}"
+                return "", status_code, f"vision_http_{status_code}"
 
             data = response.json()
             raw = self._extract_message_content(data)
@@ -365,19 +426,7 @@ class VisionProcessor:
 
     @staticmethod
     def _has_payload_signal(payload: dict[str, Any]) -> bool:
-        if not isinstance(payload, dict):
-            return False
-
-        for key in ("visible_text", "layout", "summary"):
-            if str(payload.get(key) or "").strip():
-                return True
-
-        for key in ("categories", "key_elements", "tables"):
-            value = payload.get(key)
-            if isinstance(value, list) and value:
-                return True
-
-        return False
+        return has_payload_signal(payload)
 
     @staticmethod
     def _should_retry_second_pass(payload: dict[str, Any]) -> bool:
@@ -388,10 +437,10 @@ class VisionProcessor:
         if not error:
             return True
 
-        if error in {"openrouter_api_key_missing", "empty_image_bytes"}:
+        if error in {"vision_api_key_missing", "empty_image_bytes"}:
             return False
 
-        return error.startswith("openrouter_http_") or error.startswith("vision_")
+        return error.startswith("vision_http_") or error.startswith("vision_")
 
     def _prepare_retry_image_bytes(self, image_bytes: bytes, mime_type: str) -> tuple[bytes, str, str]:
         if len(image_bytes) <= self._SECOND_PASS_MAX_IMAGE_BYTES:
@@ -437,34 +486,11 @@ class VisionProcessor:
 
     @staticmethod
     def _merge_notes(*parts: Any) -> str:
-        notes: list[str] = []
-        seen: set[str] = set()
-        for part in parts:
-            text = str(part or "").strip()
-            if not text:
-                continue
-            key = text.lower()
-            if key in seen:
-                continue
-            seen.add(key)
-            notes.append(text)
-        return "; ".join(notes)
+        return merge_notes(*parts)
 
     @staticmethod
     def _merge_attempted_models(*attempt_lists: Any) -> list[str]:
-        models: list[str] = []
-        seen: set[str] = set()
-        for attempt_list in attempt_lists:
-            if not isinstance(attempt_list, list):
-                continue
-            for item in attempt_list:
-                model = str(item or "").strip()
-                lowered = model.lower()
-                if not model or lowered in seen:
-                    continue
-                seen.add(lowered)
-                models.append(model)
-        return models
+        return merge_attempted_models(*attempt_lists)
 
     def _resolve_retry_payload(
         self,
@@ -510,26 +536,7 @@ class VisionProcessor:
 
     @staticmethod
     def _extract_message_content(data: dict[str, Any]) -> str:
-        choices = data.get("choices")
-        if not isinstance(choices, list) or not choices:
-            return ""
-
-        message = choices[0].get("message") if isinstance(choices[0], dict) else None
-        if not isinstance(message, dict):
-            return ""
-
-        content = message.get("content")
-        if isinstance(content, str):
-            return content.strip()
-
-        if isinstance(content, list):
-            parts: list[str] = []
-            for item in content:
-                if isinstance(item, dict) and isinstance(item.get("text"), str):
-                    parts.append(item.get("text", "").strip())
-            return "\n".join(part for part in parts if part).strip()
-
-        return ""
+        return extract_message_content(data)
 
     @staticmethod
     def _to_data_uri(image_bytes: bytes, mime_type: str) -> str:
@@ -538,67 +545,20 @@ class VisionProcessor:
 
     @staticmethod
     def _clean_json_text(raw: str) -> str:
-        text = (raw or "").strip()
-        if not text:
-            return ""
-
-        fence_match = re.search(r"```(?:json)?\s*(.*?)\s*```", text, flags=re.DOTALL | re.IGNORECASE)
-        if fence_match:
-            text = fence_match.group(1).strip()
-
-        start = text.find("{")
-        end = text.rfind("}")
-        if start >= 0 and end > start:
-            text = text[start : end + 1]
-
-        return text.strip()
+        return clean_json_text(raw)
 
     def _parse_json_payload(self, raw: str) -> dict[str, Any]:
-        cleaned = self._clean_json_text(raw)
-        if not cleaned:
-            return {}
-
-        try:
-            parsed = json.loads(cleaned)
-            if isinstance(parsed, dict):
-                return parsed
-        except json.JSONDecodeError:
+        parsed = parse_json_payload(raw)
+        if not parsed and str(raw or "").strip():
             logger.warning("Vision JSON parse failed. Returning empty payload.")
-        return {}
+        return parsed
 
     @staticmethod
     def _normalize_str_list(value: Any) -> list[str]:
-        if isinstance(value, list):
-            out: list[str] = []
-            seen: set[str] = set()
-            for item in value:
-                text = str(item or "").strip()
-                key = text.lower()
-                if text and key not in seen:
-                    seen.add(key)
-                    out.append(text)
-            return out
-        if isinstance(value, str):
-            text = value.strip()
-            return [text] if text else []
-        return []
+        return normalize_str_list(value)
 
     def _normalize_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
-        tables = payload.get("tables")
-        normalized_tables: list[dict[str, Any]] = []
-        if isinstance(tables, list):
-            for item in tables:
-                if isinstance(item, dict):
-                    normalized_tables.append(item)
-
-        return {
-            "visible_text": str(payload.get("visible_text") or "").strip(),
-            "layout": str(payload.get("layout") or "").strip(),
-            "categories": self._normalize_str_list(payload.get("categories")),
-            "key_elements": self._normalize_str_list(payload.get("key_elements")),
-            "tables": normalized_tables,
-            "summary": str(payload.get("summary") or "").strip(),
-        }
+        return normalize_payload(payload)
 
     def _error_payload(
         self,
@@ -608,17 +568,9 @@ class VisionProcessor:
         source: str,
         attempted_models: list[str] | None = None,
     ) -> dict[str, Any]:
-        payload = {
-            "visible_text": "",
-            "layout": "",
-            "categories": [],
-            "key_elements": [],
-            "tables": [],
-            "summary": "",
-            "warning": warning,
-            "error": error,
-            "source": source,
-            "model": "",
-            "attempted_models": attempted_models or [],
-        }
-        return payload
+        return build_error_payload(
+            warning=warning,
+            error=error,
+            source=source,
+            attempted_models=attempted_models,
+        )
