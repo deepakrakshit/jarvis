@@ -125,6 +125,7 @@ class DocumentIntelligence:
     key_points: list[str]
     metrics: list[dict[str, Any]]
     risks: list[str]
+    entities: dict[str, list[str]]
     metadata: dict[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
@@ -135,6 +136,7 @@ class DocumentIntelligence:
             "key_points": self.key_points,
             "metrics": self.metrics,
             "risks": self.risks,
+            "entities": self.entities,
             "metadata": self.metadata,
         }
 
