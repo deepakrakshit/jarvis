@@ -74,11 +74,10 @@ def validate_file_path(file_path: str) -> tuple[str, str]:
     return str(path), ""
 
 
-def select_file_gui() -> str | None:
+def select_file_gui(*, allow_multiple: bool = False) -> list[str] | None:
     """Open a native file dialog using tkinter.
 
-    Returns the selected file path, or None if cancelled.
-    Thread-safe on Windows.
+    Returns selected absolute paths, or None if cancelled.
     """
     try:
         import tkinter as tk
@@ -89,16 +88,28 @@ def select_file_gui() -> str | None:
         root.attributes("-topmost", True)
         root.update()
 
-        file_path = filedialog.askopenfilename(
-            title="Select a document to analyze",
-            filetypes=_FILE_TYPE_FILTERS,
-            parent=root,
-        )
+        if allow_multiple:
+            selected = filedialog.askopenfilenames(
+                title="Select documents",
+                filetypes=_FILE_TYPE_FILTERS,
+                parent=root,
+            )
+        else:
+            selected = filedialog.askopenfilename(
+                title="Select a document to analyze",
+                filetypes=_FILE_TYPE_FILTERS,
+                parent=root,
+            )
 
         root.destroy()
 
-        if file_path and file_path.strip():
-            return str(Path(file_path).resolve())
+        if allow_multiple:
+            paths = [str(Path(item).resolve()) for item in selected if str(item).strip()]
+            return paths or None
+
+        file_path = str(selected or "").strip()
+        if file_path:
+            return [str(Path(file_path).resolve())]
         return None
 
     except ImportError:
@@ -109,15 +120,15 @@ def select_file_gui() -> str | None:
         return None
 
 
-def select_file_cli() -> str | None:
-    """Prompt user for a file path via CLI input.
-
-    Returns the file path or None if cancelled.
-    """
+def select_file_cli(*, allow_multiple: bool = False) -> list[str] | None:
+    """Prompt user for one or many file paths via CLI input."""
     try:
         print("\n📄 Document Analysis")
         print(f"   Supported formats: {', '.join(sorted(SUPPORTED_EXTENSIONS))}")
-        user_input = input("   Enter file path (or 'cancel'): ").strip()
+        if allow_multiple:
+            user_input = input("   Enter file paths separated by commas (or 'cancel'): ").strip()
+        else:
+            user_input = input("   Enter file path (or 'cancel'): ").strip()
 
         if not user_input or user_input.lower() in {"cancel", "c", "quit", "q", "exit"}:
             return None
@@ -128,22 +139,52 @@ def select_file_cli() -> str | None:
         ):
             user_input = user_input[1:-1]
 
-        return str(Path(user_input).resolve())
+        if not allow_multiple:
+            return [str(Path(user_input).resolve())]
+
+        raw_parts = [part.strip() for part in user_input.split(",") if part.strip()]
+        paths = [str(Path(part).resolve()) for part in raw_parts]
+        return paths or None
 
     except (EOFError, KeyboardInterrupt):
         return None
 
 
-def select_file(*, prefer_gui: bool = True) -> str | None:
-    """Select a file using the best available method.
+def select_files(
+    *,
+    prefer_gui: bool = True,
+    allow_multiple: bool = False,
+    allow_cli_fallback: bool = True,
+) -> list[str] | None:
+    """Select files using the best available method.
 
     Args:
         prefer_gui: If True, try tkinter dialog first, fall back to CLI.
+        allow_multiple: If True, allow selecting multiple files.
+        allow_cli_fallback: If False, never prompt for terminal input.
     """
     if prefer_gui:
-        result = select_file_gui()
+        result = select_file_gui(allow_multiple=allow_multiple)
         if result is not None:
             return result
+        if not allow_cli_fallback:
+            logger.info("GUI file dialog unavailable or cancelled; CLI fallback disabled")
+            return None
         logger.info("GUI file dialog unavailable or cancelled, falling back to CLI")
 
-    return select_file_cli()
+    if not allow_cli_fallback:
+        return None
+
+    return select_file_cli(allow_multiple=allow_multiple)
+
+
+def select_file(*, prefer_gui: bool = True, allow_cli_fallback: bool = True) -> str | None:
+    """Backward-compatible single-file selector."""
+    selected = select_files(
+        prefer_gui=prefer_gui,
+        allow_multiple=False,
+        allow_cli_fallback=allow_cli_fallback,
+    )
+    if not selected:
+        return None
+    return selected[0]

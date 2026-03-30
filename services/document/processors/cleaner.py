@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
+import os
 import re
 
 from services.document.llm_client import DocumentLLMClient
@@ -30,7 +31,7 @@ _CLEAN_SYSTEM_PROMPT = """You are a document text cleaner. Your job is to take r
 Return ONLY the cleaned text. No explanations, no commentary."""
 
 _MAX_CHUNK_CHARS_FOR_CLEANING = 6000
-_MAX_CLEAN_WORKERS = 4
+_MAX_CLEAN_WORKERS = max(2, min(12, (os.cpu_count() or 4)))
 
 
 class DocumentCleaner:

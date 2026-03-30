@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import logging
 import re
 import threading
 import time
@@ -21,6 +22,9 @@ from services.search_service import SearchService
 from services.weather_service import WeatherService
 from utils.text_cleaner import TextCleaner
 from voice.tts import RealtimePiperTTS
+
+
+logger = logging.getLogger(__name__)
 
 
 class JarvisRuntime:
@@ -81,8 +85,18 @@ class JarvisRuntime:
         re.IGNORECASE,
     )
     DOCUMENT_RE = re.compile(
-        r"\b(analyze|summarize|read|extract|parse|process|open|load|review)\b.*\b(document|pdf|docx|doc|file|image|scan)\b"
+        r"\b(analyze|summarize|read|extract|parse|process|open|load|review|upload|select|compare)\b.*\b(document|documents|doc|docs|pdf|pdfs|docx|file|files|image|images|scan)\b"
         r"|\b(document|pdf|docx)\b",
+        re.IGNORECASE,
+    )
+    DOCUMENT_COMPARE_RE = re.compile(
+        r"\b(compare|comparison|versus|\bvs\b|difference|differences)\b.*\b(document|documents|doc|docs|pdf|pdfs|docx|file|files)\b"
+        r"|\bcompare\s+(?:the\s+)?(?:\d+|two|three|four|five)\s+(?:documents?|files?|docs?|pdfs?)\b"
+        r"|\bcompare\s+these\b",
+        re.IGNORECASE,
+    )
+    DOCUMENT_QA_HINT_RE = re.compile(
+        r"\b(pricing|price|cost|risk|risks|plan|plans|feature|features|entity|entities|key point|key points|find all|what does this|in this document|from this file)\b",
         re.IGNORECASE,
     )
 
@@ -107,6 +121,9 @@ class JarvisRuntime:
         self._last_speedtest_requested_at = float(self.memory.get("last_speedtest_requested_at") or 0.0)
         self._session_location = ""
         self._api_active = False
+        self._cancel_event = threading.Event()
+        self._stream_response_lock = threading.Lock()
+        self._active_stream_response: requests.Response | None = None
 
         self.tts = RealtimePiperTTS(
             self.config,
@@ -171,9 +188,11 @@ class JarvisRuntime:
         try:
             from services.document.document_service import DocumentService
             return DocumentService(self.config)
-        except ImportError:
+        except ImportError as exc:
+            logger.info("Document service unavailable due to missing dependency: %s", exc)
             return None
-        except Exception:
+        except Exception as exc:
+            logger.exception("Document service initialization failed: %s", exc)
             return None
 
     def _build_intent_router(self) -> IntentRouter:
@@ -220,12 +239,24 @@ class JarvisRuntime:
             handler=self._handle_abuse_feedback,
             priority=14,
         )
+        router.register(
+            name="speedtest",
+            matcher=self._is_speedtest_request,
+            handler=self._handle_speedtest_query,
+            priority=15,
+        )
         if self.document_service is not None:
+            router.register(
+                name="document_qa",
+                matcher=self._is_document_question_request,
+                handler=self._handle_document_question,
+                priority=16,
+            )
             router.register(
                 name="document",
                 matcher=self._is_document_request,
                 handler=self._handle_document,
-                priority=16,
+                priority=17,
             )
         return router
 
@@ -513,6 +544,14 @@ class JarvisRuntime:
         )
         return any(marker in lowered for marker in followup_markers)
 
+    def _is_speedtest_request(self, text: str) -> bool:
+        lowered = (text or "").strip().lower()
+        if not lowered:
+            return False
+        if self.SPEEDTEST_RE.search(lowered):
+            return True
+        return self._is_speedtest_followup_query(lowered)
+
     @staticmethod
     def _extract_ipl_year(query: str) -> str | None:
         match = re.search(r"\b(20\d{2})\b", query or "", flags=re.IGNORECASE)
@@ -701,15 +740,18 @@ class JarvisRuntime:
             return "result"
         return None
 
-    def _speed_snapshot_is_fresh(self, snapshot: dict[str, float]) -> bool:
+    def _speed_snapshot_is_fresh(self, snapshot: dict[str, object]) -> bool:
         snapshot_ts = float(snapshot.get("timestamp", 0.0))
         if snapshot_ts <= 0:
+            return False
+        # Avoid serving stale remembered numbers as if they were newly measured.
+        if (time.time() - snapshot_ts) > 900:
             return False
         if self._last_speedtest_requested_at <= 0:
             return True
         return snapshot_ts >= self._last_speedtest_requested_at
 
-    def _get_memory_speedtest(self) -> dict[str, float] | None:
+    def _get_memory_speedtest(self) -> dict[str, object] | None:
         payload = self.memory.get("last_speedtest")
         if not isinstance(payload, dict):
             return None
@@ -724,31 +766,34 @@ class JarvisRuntime:
                 "upload_mbps": float(payload["upload_mbps"]),
                 "ping_ms": float(payload["ping_ms"]),
                 "timestamp": float(payload.get("timestamp", 0.0)),
+                "server_name": str(payload.get("server_name") or "").strip(),
+                "server_host": str(payload.get("server_host") or "").strip(),
+                "server_country": str(payload.get("server_country") or "").strip(),
+                "server_sponsor": str(payload.get("server_sponsor") or "").strip(),
             }
         except Exception:
             return None
 
-    def _build_speedtest_result_from_snapshot(self, snapshot: dict[str, float], *, country: str | None) -> str:
+    def _build_speedtest_result_from_snapshot(self, snapshot: dict[str, object], *, country: str | None) -> str:
         download = float(snapshot.get("download_mbps", 0.0))
         upload = float(snapshot.get("upload_mbps", 0.0))
-        ping = float(snapshot.get("ping_ms", 0.0))
-        avg_low, avg_high, country_label = self._speedtest_benchmark(country)
-
-        if download < avg_low:
-            verdict = f"This is below common {country_label} household ranges ({avg_low:.0f}-{avg_high:.0f} Mbps)."
-        elif download <= avg_high:
-            verdict = f"This is within common {country_label} household ranges ({avg_low:.0f}-{avg_high:.0f} Mbps)."
+        if download >= 100 and upload >= 20:
+            quality = "Your connection looks excellent for streaming, calls, and large file transfers."
+        elif download >= 50 and upload >= 10:
+            quality = "Your connection looks good for everyday use, meetings, and HD streaming."
+        elif download >= 25 and upload >= 5:
+            quality = "Your connection is usable, but heavier workloads may feel slower at times."
         else:
-            verdict = f"This is above common {country_label} household ranges ({avg_low:.0f}-{avg_high:.0f} Mbps)."
+            quality = "Your connection is currently on the slower side; uploads and high-quality streaming may lag."
 
         return (
-            f"Download: {download:.2f} Mbps\n"
-            f"Upload: {upload:.2f} Mbps\n"
-            f"Ping: {ping:.1f} ms\n\n"
-            f"{verdict}"
+            "Internet speed test results:\n"
+            f"Download Speed: {download:.2f} Mbps\n"
+            f"Upload Speed: {upload:.2f} Mbps\n\n"
+            f"{quality}"
         )
 
-    def _build_speedtest_assessment_from_snapshot(self, snapshot: dict[str, float], *, country: str | None) -> str:
+    def _build_speedtest_assessment_from_snapshot(self, snapshot: dict[str, object], *, country: str | None) -> str:
         download = float(snapshot.get("download_mbps", 0.0))
         avg_low, avg_high, country_label = self._speedtest_benchmark(country)
 
@@ -847,7 +892,8 @@ class JarvisRuntime:
                 content = str((message or {}).get("content") or "").strip()
                 if content:
                     return self._enforce_assistant_identity(content, user_text=user_text)
-        except Exception:
+        except Exception as exc:
+            logger.warning("Quick-reply LLM call failed; using fallback response: %s", exc)
             return fallback
 
         return fallback
@@ -1018,6 +1064,96 @@ class JarvisRuntime:
             return False
         return bool(self.DOCUMENT_RE.search(lowered))
 
+    @staticmethod
+    def _is_explicit_multi_file_compare_request(text: str) -> bool:
+        lowered = (text or "").strip().lower()
+        if not lowered:
+            return False
+
+        if not re.search(r"\b(compare|comparison|versus|\bvs\b|difference|differences)\b", lowered):
+            return False
+
+        return bool(
+            re.search(
+                r"\b(?:the|these)?\s*(?:\d+|one|two|three|four|five|both|pair)\s*(?:documents?|files?|docs?|pdfs?)\b",
+                lowered,
+            )
+        )
+
+    def _is_document_question_request(self, text: str) -> bool:
+        lowered = (text or "").strip().lower()
+        if not lowered or self.document_service is None:
+            return False
+
+        has_active_docs = bool(getattr(self.document_service, "has_active_documents", lambda: False)())
+        if not has_active_docs:
+            return False
+
+        if self.DOCUMENT_COMPARE_RE.search(lowered):
+            if self._is_explicit_multi_file_compare_request(lowered):
+                # Explicit compare of numbered files should open file picker again.
+                return False
+
+            explicit_file_selection = re.search(
+                r"\b(upload|select|choose|open|load|pick|analyze|process)\b",
+                lowered,
+            )
+            if explicit_file_selection:
+                return False
+
+            active_names = getattr(self.document_service, "active_document_names", lambda: [])()
+            active_doc_count = len(active_names) if isinstance(active_names, list) else 0
+            return active_doc_count >= 2
+
+        if self.DOCUMENT_RE.search(lowered):
+            # Explicit analyze/read/upload commands should use file selection flow.
+            if re.search(r"\b(analyze|summarize|read|open|load|upload|select|process|compare)\b", lowered):
+                return False
+
+        if any(
+            matcher.search(lowered)
+            for matcher in (
+                self.WEATHER_RE,
+                self.PUBLIC_IP_RE,
+                self.LOCATION_RE,
+                self.SPEEDTEST_RE,
+                self.STATUS_RE,
+                self.TEMPORAL_RE,
+                self.UPDATE_RE,
+            )
+        ):
+            return False
+
+        if self.DOCUMENT_QA_HINT_RE.search(lowered):
+            return True
+
+        if self._last_fact_source in {"document", "document_qa", "document_compare"} and re.search(
+            r"^(what|which|how|where|when|why|list|find|show|compare)\b",
+            lowered,
+        ):
+            return True
+
+        if self._is_factual_query(lowered):
+            return False
+
+        return False
+
+    def _handle_document_question(self, text: str) -> str:
+        if self.document_service is None:
+            return "Document analysis is not available. Install the required dependencies first."
+
+        try:
+            response = self.document_service.answer_question_for_display(text)
+        except Exception as exc:
+            return f"Document question answering encountered an error: {exc}"
+
+        self._remember_fact(
+            source="document_qa",
+            query=text,
+            handler=lambda _q: self.document_service.answer_question_for_display(_q),
+        )
+        return response
+
     def _handle_document(self, text: str) -> str:
         """Handle document analysis requests.
 
@@ -1028,42 +1164,79 @@ class JarvisRuntime:
             return "Document analysis is not available. Install the required dependencies first."
 
         # System opens the file picker — LLM has no involvement in this step
-        from services.document.file_selector import select_file, validate_file_path
+        from services.document.file_selector import select_files, validate_file_path
+
+        compare_mode = bool(self.DOCUMENT_COMPARE_RE.search(text or ""))
 
         self._emit_mode("processing")
         self._emit_text_delta("Opening file selector...")
 
-        # Try GUI picker first; fall back to CLI
-        file_path = select_file(prefer_gui=True)
+        # In desktop/voice mode, never block on terminal input fallback.
+        allow_cli_fallback = not any(
+            callback is not None
+            for callback in (self._on_mode_change, self._on_text_delta, self._on_api_activity)
+        )
 
-        if not file_path:
+        # Try GUI picker first; fall back to CLI.
+        selected_paths = select_files(
+            prefer_gui=True,
+            allow_multiple=compare_mode,
+            allow_cli_fallback=allow_cli_fallback,
+        )
+
+        if not selected_paths:
             return "No document was selected. Please say 'analyze document' again and choose a file."
 
-        # Validate before running the pipeline
-        validated_path, error = validate_file_path(file_path)
-        if error:
-            return f"I cannot process that file: {error}"
+        if compare_mode and len(selected_paths) < 2:
+            return "Please select at least two documents to compare."
+
+        validated_paths: list[str] = []
+        for file_path in selected_paths:
+            validated_path, error = validate_file_path(file_path)
+            if error:
+                return f"I cannot process that file: {error}"
+            validated_paths.append(validated_path)
+
+        if not validated_paths:
+            return "No valid document was selected."
 
         # Emit processing status
         from pathlib import Path
-        file_name = Path(validated_path).name
-        self._emit_text_delta(f"Analyzing {file_name}...")
-        self._emit_text_delta(
-            " This may take few moments, stay put."
-        )
+        if compare_mode:
+            short_names = ", ".join(Path(path).name for path in validated_paths[:3])
+            self._emit_text_delta(f"Comparing {len(validated_paths)} documents: {short_names}...")
+        else:
+            file_name = Path(validated_paths[0]).name
+            self._emit_text_delta(f" Analyzing {file_name}...")
+        self._emit_text_delta(" This may take few moments, stay put.")
 
         try:
-            result = self.document_service.analyze_for_display(
-                validated_path, user_query=text
-            )
+            if compare_mode:
+                result = self.document_service.compare_documents_for_display(
+                    validated_paths,
+                    user_query=text,
+                )
+            else:
+                result = self.document_service.analyze_for_display(
+                    validated_paths[0],
+                    user_query=text,
+                )
         except Exception as exc:
             return f"Document analysis encountered an error: {exc}"
 
-        self._remember_fact(
-            source="document",
-            query=text,
-            handler=lambda _q: self.document_service.analyze_for_display(validated_path, user_query=_q),
-        )
+        if compare_mode:
+            self._remember_fact(
+                source="document_compare",
+                query=text,
+                handler=lambda _q: self.document_service.compare_documents_for_display(validated_paths, user_query=_q),
+            )
+        else:
+            selected_path = validated_paths[0]
+            self._remember_fact(
+                source="document",
+                query=text,
+                handler=lambda _q: self.document_service.analyze_for_display(selected_path, user_query=_q),
+            )
         return result
 
     def set_event_callbacks(
@@ -1099,6 +1272,27 @@ class JarvisRuntime:
             except Exception:
                 pass
 
+    def _clear_turn_cancellation(self) -> None:
+        self._cancel_event.clear()
+
+    def _is_turn_cancelled(self) -> bool:
+        return self._cancel_event.is_set()
+
+    def _cancel_current_turn(self) -> None:
+        self._cancel_event.set()
+
+        response_to_close: requests.Response | None = None
+        with self._stream_response_lock:
+            if self._active_stream_response is not None:
+                response_to_close = self._active_stream_response
+                self._active_stream_response = None
+
+        if response_to_close is not None:
+            try:
+                response_to_close.close()
+            except Exception:
+                pass
+
     def _handle_tts_start(self) -> None:
         self._emit_mode("speaking")
 
@@ -1109,15 +1303,15 @@ class JarvisRuntime:
         self._emit_mode("listening")
 
     def skip_current_reply(self) -> dict[str, object]:
+        self._cancel_current_turn()
         turn_id = self.tts.interrupt()
-        if self._api_active:
-            self._emit_mode("processing")
-        else:
-            self._emit_mode("listening")
+        self._emit_api_activity(False)
+        self._emit_mode("listening")
         return {
             "skipped": True,
             "turn_id": turn_id,
             "api_active": self._api_active,
+            "cancel_requested": True,
         }
 
     def _trim_history(self) -> None:
@@ -1218,6 +1412,11 @@ class JarvisRuntime:
         persist_user: bool,
         stream_to_stdout: bool,
     ) -> str:
+        if self._is_turn_cancelled():
+            self._emit_api_activity(False)
+            self._emit_mode("listening")
+            return "Request skipped."
+
         normalized_response = self._enforce_assistant_identity(response_text, user_text=user_text)
         finalized = self.personality.finalize(normalized_response, user_text=user_text)
 
@@ -1269,6 +1468,7 @@ class JarvisRuntime:
         persist_user: bool = True,
         stream_to_stdout: bool = True,
     ) -> str:
+        self._clear_turn_cancellation()
         cleaned = self.text_cleaner.clean(text)
         normalized_text = cleaned.cleaned_text or text
         self._capture_session_location(normalized_text)
@@ -1322,134 +1522,164 @@ class JarvisRuntime:
         self._emit_mode("processing")
         self._emit_api_activity(True)
 
-        response = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {self.config.groq_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": self.config.groq_model,
-                "messages": outbound_messages,
-                "temperature": 0.3,
-                "stream": True,
-            },
-            stream=True,
-            timeout=60,
-        )
-        response.raise_for_status()
-
-        full_text = ""
-        speak_buffer = ""
-        first_voice_chunk = True
-        queued_any_speech = False
-        last_chunk_queued_at = time.perf_counter()
-
-        if stream_to_stdout:
-            print(f"{WHITE}JARVIS:{RESET} ", end="", flush=True)
-
+        response: requests.Response | None = None
         try:
-            for line in response.iter_lines(decode_unicode=True):
-                if not line:
-                    continue
+            response = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.config.groq_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self.config.groq_model,
+                    "messages": outbound_messages,
+                    "temperature": 0.3,
+                    "stream": True,
+                },
+                stream=True,
+                timeout=60,
+            )
+            with self._stream_response_lock:
+                self._active_stream_response = response
+            response.raise_for_status()
 
-                if not line.startswith("data: "):
-                    continue
+            full_text = ""
+            speak_buffer = ""
+            first_voice_chunk = True
+            queued_any_speech = False
+            last_chunk_queued_at = time.perf_counter()
 
-                chunk = line[6:]
-                if chunk == "[DONE]":
-                    break
+            if stream_to_stdout:
+                print(f"{WHITE}JARVIS:{RESET} ", end="", flush=True)
 
-                try:
-                    data = json.loads(chunk)
-                    delta = data["choices"][0].get("delta", {}).get("content")
-                except Exception:
-                    continue
-
-                if not delta:
-                    continue
-
-                if stream_to_stdout:
-                    print(delta, end="", flush=True)
-
-                self._emit_text_delta(delta)
-                full_text += delta
-                speak_buffer += delta
-
-                if first_voice_chunk:
-                    first_chunk, speak_buffer = self._first_speech_chunk(speak_buffer)
-                    if first_chunk:
-                        if self.config.tts_first_chunk_delay > 0:
-                            time.sleep(self.config.tts_first_chunk_delay)
-                        first_voice_chunk = False
-                        if self.tts.enqueue_text(first_chunk, turn_id):
-                            queued_any_speech = True
-                            last_chunk_queued_at = time.perf_counter()
-
-                while True:
-                    chunk_to_speak, speak_buffer = self._next_speech_chunk(speak_buffer, final=False)
-                    if not chunk_to_speak:
+            try:
+                for line in response.iter_lines(decode_unicode=True):
+                    if self._is_turn_cancelled():
                         break
 
-                    if first_voice_chunk and self.config.tts_first_chunk_delay > 0:
-                        time.sleep(self.config.tts_first_chunk_delay)
-                    first_voice_chunk = False
-                    if self.tts.enqueue_text(chunk_to_speak, turn_id):
-                        queued_any_speech = True
-                        last_chunk_queued_at = time.perf_counter()
+                    if not line:
+                        continue
 
-                if speak_buffer.strip() and (time.perf_counter() - last_chunk_queued_at) >= self.EARLY_CHUNK_MAX_WAIT_SECONDS:
-                    early_chunk, speak_buffer = self._early_speech_chunk(speak_buffer)
-                    if early_chunk:
+                    if not line.startswith("data: "):
+                        continue
+
+                    chunk = line[6:]
+                    if chunk == "[DONE]":
+                        break
+
+                    try:
+                        data = json.loads(chunk)
+                        delta = data["choices"][0].get("delta", {}).get("content")
+                    except Exception:
+                        continue
+
+                    if not delta:
+                        continue
+
+                    if self._is_turn_cancelled():
+                        break
+
+                    if stream_to_stdout:
+                        print(delta, end="", flush=True)
+
+                    self._emit_text_delta(delta)
+                    full_text += delta
+                    speak_buffer += delta
+
+                    if first_voice_chunk:
+                        first_chunk, speak_buffer = self._first_speech_chunk(speak_buffer)
+                        if first_chunk:
+                            if self.config.tts_first_chunk_delay > 0:
+                                time.sleep(self.config.tts_first_chunk_delay)
+                            first_voice_chunk = False
+                            if self.tts.enqueue_text(first_chunk, turn_id):
+                                queued_any_speech = True
+                                last_chunk_queued_at = time.perf_counter()
+
+                    while True:
+                        if self._is_turn_cancelled():
+                            break
+                        chunk_to_speak, speak_buffer = self._next_speech_chunk(speak_buffer, final=False)
+                        if not chunk_to_speak:
+                            break
+
                         if first_voice_chunk and self.config.tts_first_chunk_delay > 0:
                             time.sleep(self.config.tts_first_chunk_delay)
                         first_voice_chunk = False
-                        if self.tts.enqueue_text(early_chunk, turn_id):
+                        if self.tts.enqueue_text(chunk_to_speak, turn_id):
                             queued_any_speech = True
                             last_chunk_queued_at = time.perf_counter()
-        finally:
-            self._emit_api_activity(False)
 
-        if speak_buffer.strip():
-            if first_voice_chunk and self.config.tts_first_chunk_delay > 0:
-                time.sleep(self.config.tts_first_chunk_delay)
-            tail_chunk, _ = self._next_speech_chunk(speak_buffer, final=True)
-            if tail_chunk:
-                if self.tts.enqueue_text(tail_chunk, turn_id):
+                    if self._is_turn_cancelled():
+                        break
+
+                    if speak_buffer.strip() and (time.perf_counter() - last_chunk_queued_at) >= self.EARLY_CHUNK_MAX_WAIT_SECONDS:
+                        early_chunk, speak_buffer = self._early_speech_chunk(speak_buffer)
+                        if early_chunk:
+                            if first_voice_chunk and self.config.tts_first_chunk_delay > 0:
+                                time.sleep(self.config.tts_first_chunk_delay)
+                            first_voice_chunk = False
+                            if self.tts.enqueue_text(early_chunk, turn_id):
+                                queued_any_speech = True
+                                last_chunk_queued_at = time.perf_counter()
+            finally:
+                self._emit_api_activity(False)
+
+            if self._is_turn_cancelled():
+                if stream_to_stdout:
+                    print()
+                self._emit_mode("listening")
+                return "Request skipped."
+
+            if speak_buffer.strip():
+                if first_voice_chunk and self.config.tts_first_chunk_delay > 0:
+                    time.sleep(self.config.tts_first_chunk_delay)
+                tail_chunk, _ = self._next_speech_chunk(speak_buffer, final=True)
+                if tail_chunk:
+                    if self.tts.enqueue_text(tail_chunk, turn_id):
+                        queued_any_speech = True
+
+            raw_text = full_text.strip().strip('"')
+            if not full_text.strip():
+                raw_text = "I did not receive a valid response. Please try again."
+                full_text = raw_text
+                if stream_to_stdout:
+                    print(raw_text, end="", flush=True)
+                if self.tts.enqueue_text(raw_text, turn_id):
                     queued_any_speech = True
 
-        raw_text = full_text.strip().strip('"')
-        if not full_text.strip():
-            raw_text = "I did not receive a valid response. Please try again."
-            full_text = raw_text
             if stream_to_stdout:
-                print(raw_text, end="", flush=True)
-            if self.tts.enqueue_text(raw_text, turn_id):
-                queued_any_speech = True
+                print()
 
-        if stream_to_stdout:
-            print()
+            if self._is_conceptual_query(normalized_text) and not self._is_explicit_detail_request(normalized_text):
+                raw_text = self._briefen_response(raw_text)
 
-        if self._is_conceptual_query(normalized_text) and not self._is_explicit_detail_request(normalized_text):
-            raw_text = self._briefen_response(raw_text)
+            raw_text = self._enforce_assistant_identity(raw_text, user_text=normalized_text)
+            finalized = self.personality.finalize(raw_text, user_text=text)
 
-        raw_text = self._enforce_assistant_identity(raw_text, user_text=normalized_text)
-        finalized = self.personality.finalize(raw_text, user_text=text)
+            if persist_user:
+                self.messages.append({"role": "assistant", "content": finalized})
+                self._trim_history()
 
-        if persist_user:
-            self.messages.append({"role": "assistant", "content": finalized})
-            self._trim_history()
+            if queued_any_speech:
+                self.tts.wait_for_turn_completion(
+                    turn_id,
+                    timeout_s=self.config.tts_turn_completion_timeout_seconds,
+                )
+            else:
+                self._emit_mode("listening")
 
-        if queued_any_speech:
-            self.tts.wait_for_turn_completion(
-                turn_id,
-                timeout_s=self.config.tts_turn_completion_timeout_seconds,
-            )
-        else:
-            self._emit_mode("listening")
-
-        self._last_assistant_reply = finalized
-        return finalized
+            self._last_assistant_reply = finalized
+            return finalized
+        finally:
+            with self._stream_response_lock:
+                if self._active_stream_response is response:
+                    self._active_stream_response = None
+            if response is not None:
+                try:
+                    response.close()
+                except Exception:
+                    pass
 
     def greet(self, *, stream_to_stdout: bool = True) -> str:
         current_hour = datetime.datetime.now().hour

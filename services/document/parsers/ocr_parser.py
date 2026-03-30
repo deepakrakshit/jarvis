@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
+import threading
 import time
 from typing import Any
 
@@ -47,6 +48,7 @@ class OcrParser(BaseParser):
 
     _ocr_instance: Any = None
     _ocr_runtime_error: str | None = None
+    _init_lock = threading.Lock()
 
     @staticmethod
     def _max_image_side() -> int:
@@ -101,92 +103,84 @@ class OcrParser(BaseParser):
         if OcrParser._ocr_runtime_error:
             raise RuntimeError(OcrParser._ocr_runtime_error)
 
-        try:
-            # Prevent PaddleX model-host probing from blocking document analysis.
-            os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
+        with OcrParser._init_lock:
+            if OcrParser._ocr_instance is not None:
+                return OcrParser._ocr_instance
 
-            from paddleocr import PaddleOCR
+            if OcrParser._ocr_runtime_error:
+                raise RuntimeError(OcrParser._ocr_runtime_error)
 
-            # PaddleOCR changed constructor args across releases.
-            # Try progressively minimal argument sets for compatibility.
-            init_variants = (
-                {
-                    "enable_mkldnn": False,
-                    "lang": "en",
-                    "ocr_version": "PP-OCRv5",
-                    "use_doc_orientation_classify": False,
-                    "use_doc_unwarping": False,
-                    "use_textline_orientation": False,
-                    "text_detection_model_name": "PP-OCRv5_mobile_det",
-                    "text_recognition_model_name": "en_PP-OCRv5_mobile_rec",
-                    "text_det_limit_side_len": self._max_image_side(),
-                },
-                {
-                    "enable_mkldnn": False,
-                    "lang": "en",
-                    "ocr_version": "PP-OCRv5",
-                    "use_doc_orientation_classify": False,
-                    "use_doc_unwarping": False,
-                    "use_textline_orientation": False,
-                    "text_det_limit_side_len": self._max_image_side(),
-                },
-                {
-                    "enable_mkldnn": False,
-                    "use_angle_cls": False,
-                    "lang": "en",
-                    "use_gpu": False,
-                    "use_doc_orientation_classify": False,
-                    "use_doc_unwarping": False,
-                    "use_textline_orientation": False,
-                    "text_det_limit_side_len": self._max_image_side(),
-                },
-                {
-                    "enable_mkldnn": False,
-                    "lang": "en",
-                    "use_doc_orientation_classify": False,
-                    "use_doc_unwarping": False,
-                    "use_textline_orientation": False,
-                    "text_det_limit_side_len": self._max_image_side(),
-                },
-                {
-                    "enable_mkldnn": False,
-                    "lang": "en",
-                    "use_doc_orientation_classify": False,
-                    "use_doc_unwarping": False,
-                    "use_textline_orientation": False,
-                    "text_det_limit_side_len": self._max_image_side(),
-                },
-                {
-                    "enable_mkldnn": False,
-                    "lang": "en",
-                },
-                {},
-            )
+            try:
+                # Prevent PaddleX model-host probing from blocking document analysis.
+                os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
 
-            last_init_error: Exception | None = None
-            for kwargs in init_variants:
-                try:
-                    OcrParser._ocr_instance = PaddleOCR(**kwargs)
-                    return OcrParser._ocr_instance
-                except (TypeError, ValueError) as exc:
-                    last_init_error = exc
-                    continue
+                from paddleocr import PaddleOCR
 
-            raise RuntimeError(
-                f"PaddleOCR initialization failed for all compatibility variants: {last_init_error}"
-            )
-        except ImportError:
-            raise ImportError(
-                "PaddleOCR is not installed. "
-                "Install with: pip install paddleocr paddlepaddle"
-            )
-        except Exception as exc:
-            raise RuntimeError(
-                "PaddleOCR initialization failed. "
-                "If model host checks are slow on your network, keep "
-                "PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True. "
-                f"Original error: {exc}"
-            ) from exc
+                # PaddleOCR changed constructor args across releases.
+                # Try progressively minimal argument sets for compatibility.
+                init_variants = (
+                    {
+                        "enable_mkldnn": False,
+                        "lang": "en",
+                        "ocr_version": "PP-OCRv5",
+                        "use_doc_orientation_classify": False,
+                        "use_doc_unwarping": False,
+                        "use_textline_orientation": False,
+                        "text_detection_model_name": "PP-OCRv5_mobile_det",
+                        "text_recognition_model_name": "en_PP-OCRv5_mobile_rec",
+                        "text_det_limit_side_len": self._max_image_side(),
+                    },
+                    {
+                        "enable_mkldnn": False,
+                        "lang": "en",
+                        "ocr_version": "PP-OCRv5",
+                        "use_doc_orientation_classify": False,
+                        "use_doc_unwarping": False,
+                        "use_textline_orientation": False,
+                        "text_det_limit_side_len": self._max_image_side(),
+                    },
+                    {
+                        "enable_mkldnn": False,
+                        "use_angle_cls": False,
+                        "lang": "en",
+                        "use_gpu": False,
+                        "use_doc_orientation_classify": False,
+                        "use_doc_unwarping": False,
+                        "use_textline_orientation": False,
+                        "text_det_limit_side_len": self._max_image_side(),
+                    },
+                    {
+                        "enable_mkldnn": False,
+                        "lang": "en",
+                    },
+                    {},
+                )
+
+                last_init_error: Exception | None = None
+                for kwargs in init_variants:
+                    try:
+                        OcrParser._ocr_instance = PaddleOCR(**kwargs)
+                        return OcrParser._ocr_instance
+                    except (TypeError, ValueError) as exc:
+                        last_init_error = exc
+                        continue
+
+                raise RuntimeError(
+                    f"PaddleOCR initialization failed for all compatibility variants: {last_init_error}"
+                )
+            except ImportError:
+                raise ImportError(
+                    "PaddleOCR is not installed. "
+                    "Install with: pip install paddleocr paddlepaddle"
+                )
+            except Exception as exc:
+                OcrParser._ocr_runtime_error = str(exc)
+                raise RuntimeError(
+                    "PaddleOCR initialization failed. "
+                    "If model host checks are slow on your network, keep "
+                    "PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True. "
+                    f"Original error: {exc}"
+                ) from exc
 
     @staticmethod
     def _extract_text_lines(results: Any) -> list[str]:

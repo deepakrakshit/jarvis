@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 import logging
+import os
 import sys
 from typing import Any
 
@@ -19,13 +20,35 @@ from services.document.parsers.base_parser import BaseParser
 logger = logging.getLogger(__name__)
 
 _MIN_TEXT_CHARS_PER_PAGE = 80
-_RENDER_DPI = 140
-_MAX_VISION_IMAGES = 10
-_MAX_OCR_IMAGES = 16
+
+
+def _int_env(name: str, default: int, minimum: int, maximum: int) -> int:
+    raw = str(os.getenv(name, str(default))).strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return max(minimum, min(maximum, value))
 
 
 class PdfParser(BaseParser):
     """PDF parser producing multimodal extraction artifacts."""
+
+    @staticmethod
+    def _render_dpi() -> int:
+        return _int_env("DOCUMENT_PDF_RENDER_DPI", 140, 96, 320)
+
+    @staticmethod
+    def _max_vision_images() -> int:
+        return _int_env("DOCUMENT_PDF_MAX_VISION_IMAGES", 10, 1, 64)
+
+    @staticmethod
+    def _max_ocr_images() -> int:
+        return _int_env("DOCUMENT_PDF_MAX_OCR_IMAGES", 16, 1, 96)
+
+    @staticmethod
+    def _max_table_pages() -> int:
+        return _int_env("DOCUMENT_PDF_TABLE_MAX_PAGES", 8, 0, 128)
 
     def parse(self, file_path: str) -> RawExtractionResult:
         try:
@@ -75,6 +98,11 @@ class PdfParser(BaseParser):
         pages: list[PageContent] = []
         all_text_parts: list[str] = []
 
+        render_dpi = self._render_dpi()
+        max_vision_images = self._max_vision_images()
+        max_ocr_images = self._max_ocr_images()
+        max_table_pages = self._max_table_pages()
+
         low_text_pages: list[int] = []
         vision_images: list[dict[str, Any]] = []
         ocr_images: list[dict[str, Any]] = []
@@ -91,13 +119,15 @@ class PdfParser(BaseParser):
                     low_text_pages.append(page_number)
 
                 payload = None
-                if has_images or low_text:
-                    payload = self._render_page_payload(page, page_number)
+                needs_vision_payload = (has_images or low_text) and len(vision_images) < max_vision_images
+                needs_ocr_payload = low_text and len(ocr_images) < max_ocr_images
+                if needs_vision_payload or needs_ocr_payload:
+                    payload = self._render_page_payload(page, page_number, dpi=render_dpi)
 
-                if payload and len(vision_images) < _MAX_VISION_IMAGES and (has_images or low_text):
+                if payload and len(vision_images) < max_vision_images and (has_images or low_text):
                     vision_images.append(payload)
 
-                if payload and low_text and len(ocr_images) < _MAX_OCR_IMAGES:
+                if payload and low_text and len(ocr_images) < max_ocr_images:
                     ocr_images.append(payload)
 
                 pages.append(
@@ -113,7 +143,7 @@ class PdfParser(BaseParser):
             doc.close()
 
         combined_text = "\n\n".join(all_text_parts)
-        tables = self._extract_tables(file_path)
+        tables = self._extract_tables(file_path, max_pages=max_table_pages)
 
         total_pages = len(pages)
         scanned_ratio = len(low_text_pages) / max(1, total_pages)
@@ -144,9 +174,9 @@ class PdfParser(BaseParser):
         )
 
     @staticmethod
-    def _render_page_payload(page: Any, page_number: int) -> dict[str, Any] | None:
+    def _render_page_payload(page: Any, page_number: int, *, dpi: int) -> dict[str, Any] | None:
         try:
-            pix = page.get_pixmap(dpi=_RENDER_DPI, alpha=False)
+            pix = page.get_pixmap(dpi=max(96, int(dpi)), alpha=False)
             image_bytes = pix.tobytes("png")
             return {
                 "source": f"pdf_page_{page_number}",
@@ -174,7 +204,10 @@ class PdfParser(BaseParser):
         return meta
 
     @staticmethod
-    def _extract_tables(file_path: str) -> list[TableData]:
+    def _extract_tables(file_path: str, *, max_pages: int) -> list[TableData]:
+        if max_pages <= 0:
+            return []
+
         try:
             import pdfplumber
         except ImportError:
@@ -185,6 +218,8 @@ class PdfParser(BaseParser):
         try:
             with pdfplumber.open(file_path) as pdf:
                 for page_idx, page in enumerate(pdf.pages):
+                    if page_idx >= max_pages:
+                        break
                     page_tables = page.extract_tables() or []
                     for raw_table in page_tables:
                         if not raw_table or len(raw_table) < 2:

@@ -1,10 +1,12 @@
 requests
 RealtimeTTS
 piper-tts
+PyAudio
 pywebview
 psutil
 pathvalidate
 speedtest-cli
+groq
 
 # Document Analysis Dependencies
 PyMuPDF
@@ -12,3 +14,4 @@ pdfplumber
 python-docx
 paddleocr
 paddlepaddle
+Pillow

@@ -10,6 +10,7 @@ import logging
 import os
 import tempfile
 import threading
+import io
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Any
@@ -97,17 +98,53 @@ class OcrProcessor:
                 "error": "empty_image_bytes",
             }
 
-        fd, temp_path = tempfile.mkstemp(prefix="jarvis_ocr_bytes_", suffix=suffix)
+        prepared_bytes, prepared_suffix = self._prepare_image_bytes_for_ocr(image_bytes, suffix=suffix)
+
+        fd, temp_path = tempfile.mkstemp(prefix="jarvis_ocr_bytes_", suffix=prepared_suffix)
         os.close(fd)
         try:
             with open(temp_path, "wb") as f:
-                f.write(image_bytes)
+                f.write(prepared_bytes)
             return self.extract_image_file(temp_path)
         finally:
             try:
                 os.remove(temp_path)
             except OSError:
                 pass
+
+    def _prepare_image_bytes_for_ocr(self, image_bytes: bytes, *, suffix: str) -> tuple[bytes, str]:
+        """Resize oversized images to reduce OCR processing time and memory pressure."""
+        max_side = int(self._config.max_image_side)
+        if max_side <= 0:
+            return image_bytes, suffix
+
+        try:
+            from PIL import Image
+        except Exception:
+            return image_bytes, suffix
+
+        try:
+            with Image.open(io.BytesIO(image_bytes)) as image:
+                width, height = image.size
+                largest = max(width, height)
+                if largest <= max_side:
+                    return image_bytes, suffix
+
+                scale = max_side / float(largest)
+                resized_w = max(1, int(width * scale))
+                resized_h = max(1, int(height * scale))
+                resampling = getattr(getattr(Image, "Resampling", Image), "LANCZOS", Image.LANCZOS)
+                resized = image.convert("RGB").resize((resized_w, resized_h), resampling)
+
+                buffer = io.BytesIO()
+                resized.save(buffer, format="PNG", optimize=True)
+                payload = buffer.getvalue()
+                if payload:
+                    return payload, ".png"
+        except Exception:
+            return image_bytes, suffix
+
+        return image_bytes, suffix
 
     def extract_images(self, images: list[dict[str, Any]]) -> dict[str, Any]:
         """Run OCR on multiple image payloads and aggregate output."""

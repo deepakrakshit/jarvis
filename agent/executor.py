@@ -85,6 +85,17 @@ class ToolExecutor:
         return await asyncio.gather(*tasks)
 
     async def _run_step_async(self, step: PlanStep, key: str) -> tuple[str, dict[str, Any]]:
+        if not isinstance(step.args, dict):
+            record = ExecutionRecord(
+                tool=step.tool,
+                args={},
+                success=False,
+                output=None,
+                error="Invalid planner arguments: args must be an object",
+                duration_ms=0,
+            )
+            return key, self._to_payload(record)
+
         definition = self.tool_registry.get(step.tool)
         if definition is None:
             record = ExecutionRecord(

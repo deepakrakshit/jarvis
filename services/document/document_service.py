@@ -13,6 +13,7 @@ import logging
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,9 @@ from services.document.file_selector import validate_file_path
 from services.document.llm_client import DocumentLLMClient
 from services.document.models import PipelineProgress
 from services.document.pipeline import DocumentPipeline
+from services.document.processors.entities import normalize_entities
+from services.document.processors.retriever import SemanticRetriever
+from services.document.qa_engine import DocumentQAEngine
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +39,7 @@ class DocumentService:
         result = service.analyze(file_path)
     """
 
-    PIPELINE_VERSION = "document_pipeline_v4_hybrid"
+    PIPELINE_VERSION = "document_pipeline_v5_intelligence"
 
     def __init__(self, config: AppConfig) -> None:
         self._config = config
@@ -71,6 +75,13 @@ class DocumentService:
         self._file_hash_cache: OrderedDict[str, tuple[int, int, str]] = OrderedDict()
         self._file_hash_cache_max_entries = 512
 
+        # Retrieval-first question answering state.
+        self._retriever = SemanticRetriever(max_chunk_chars=720, overlap_chars=120)
+        self._qa_engine = DocumentQAEngine(self._llm_client, self._retriever)
+        self._active_documents_lock = threading.Lock()
+        self._active_documents: OrderedDict[str, dict[str, Any]] = OrderedDict()
+        self._active_documents_max_entries = 8
+
     def analyze(self, file_path: str, *, user_query: str = "") -> dict[str, Any]:
         """Analyze a document and return structured intelligence.
 
@@ -92,6 +103,7 @@ class DocumentService:
                 "insights": [],
                 "tables": [],
                 "key_points": [],
+                "entities": self._empty_entities(),
             }
 
         cache_key: str | None = None
@@ -104,20 +116,26 @@ class DocumentService:
         if cache_key:
             memory_hit = self._memory_cache_get(cache_key)
             if isinstance(memory_hit, dict) and memory_hit.get("success"):
-                return self._format_cache_hit(memory_hit, validated_path=validated_path, tier="memory")
+                cached_result = self._format_cache_hit(memory_hit, validated_path=validated_path, tier="memory")
+                self._register_active_document(validated_path, cached_result, file_hash=file_hash)
+                return cached_result
 
             request_lock = self._get_request_lock(cache_key)
             with request_lock:
                 memory_hit = self._memory_cache_get(cache_key)
                 if isinstance(memory_hit, dict) and memory_hit.get("success"):
-                    return self._format_cache_hit(memory_hit, validated_path=validated_path, tier="memory")
+                    cached_result = self._format_cache_hit(memory_hit, validated_path=validated_path, tier="memory")
+                    self._register_active_document(validated_path, cached_result, file_hash=file_hash)
+                    return cached_result
 
                 persistent_hit = self._persistent_cache_get(cache_key)
                 if isinstance(persistent_hit, dict) and persistent_hit.get("success"):
                     self._memory_cache_set(cache_key, persistent_hit)
-                    return self._format_cache_hit(persistent_hit, validated_path=validated_path, tier="persistent")
+                    cached_result = self._format_cache_hit(persistent_hit, validated_path=validated_path, tier="persistent")
+                    self._register_active_document(validated_path, cached_result, file_hash=file_hash)
+                    return cached_result
 
-                result = self._compute_result(validated_path)
+                result = self._compute_result(validated_path, user_query=user_query)
                 if result.get("success") and file_hash and self._should_cache_result(result):
                     self._persistent_cache_set(
                         cache_key=cache_key,
@@ -126,28 +144,391 @@ class DocumentService:
                         payload=result,
                     )
                     self._memory_cache_set(cache_key, result)
+                if result.get("success"):
+                    self._register_active_document(validated_path, result, file_hash=file_hash)
                 return result
 
-        return self._compute_result(validated_path)
+        result = self._compute_result(validated_path, user_query=user_query)
+        if result.get("success"):
+            self._register_active_document(validated_path, result, file_hash=None)
+        return result
+
+    def has_active_documents(self) -> bool:
+        with self._active_documents_lock:
+            return bool(self._active_documents)
+
+    def active_document_names(self) -> list[str]:
+        with self._active_documents_lock:
+            return [str(item.get("file_name") or "Document") for item in self._active_documents.values()]
+
+    def answer_question(
+        self,
+        question: str,
+        *,
+        file_paths: list[str] | None = None,
+        top_k: int = 6,
+    ) -> dict[str, Any]:
+        clean_question = " ".join(str(question or "").split())
+        if not clean_question:
+            return {
+                "success": False,
+                "error": "Question is empty.",
+                "answer": "",
+                "entities": self._empty_entities(),
+                "citations": [],
+            }
+
+        records, errors = self._resolve_target_records(clean_question, file_paths=file_paths)
+        if errors and not records:
+            return {
+                "success": False,
+                "error": " | ".join(errors[:3]),
+                "answer": "",
+                "entities": self._empty_entities(),
+                "citations": [],
+            }
+
+        if not records:
+            return {
+                "success": False,
+                "error": "No active document context. Analyze a document first.",
+                "answer": "",
+                "entities": self._empty_entities(),
+                "citations": [],
+            }
+
+        compare_mode = self._qa_engine.looks_like_compare_question(clean_question) or bool(file_paths and len(records) > 1)
+        if compare_mode:
+            return self._answer_multi_document_question(clean_question, records, top_k=top_k)
+
+        target_record = records[-1]
+        return self._answer_single_document_question(clean_question, target_record, top_k=top_k)
+
+    def answer_question_for_display(
+        self,
+        question: str,
+        *,
+        file_paths: list[str] | None = None,
+    ) -> str:
+        payload = self.answer_question(question, file_paths=file_paths)
+        if not payload.get("success"):
+            detail = str(payload.get("error") or "No answer available.").strip()
+            return f"I could not answer that from document context. {detail}"
+
+        answer = self._compact_text(str(payload.get("answer") or ""), max_chars=360)
+        points = self._compact_list(payload.get("supporting_points"), max_items=3, max_chars=140)
+        citations = payload.get("citations") if isinstance(payload.get("citations"), list) else []
+        entities = normalize_entities(payload.get("entities"))
+
+        lines: list[str] = [answer or "Answer generated from document evidence."]
+
+        if points:
+            lines.append("")
+            lines.append("Evidence Highlights:")
+            for item in points:
+                lines.append(f"- {item}")
+
+        if citations:
+            refs = []
+            for item in citations[:3]:
+                if not isinstance(item, dict):
+                    continue
+                source = str(item.get("source") or item.get("file") or "chunk").strip()
+                chunk_id = str(item.get("chunk_id") or "").strip()
+                ref = f"{source} ({chunk_id})" if chunk_id else source
+                if ref:
+                    refs.append(ref)
+            if refs:
+                lines.append("")
+                lines.append("Sources: " + "; ".join(refs))
+
+        entity_line = self._format_entities_compact(entities)
+        if entity_line:
+            lines.append("")
+            lines.append("Entities: " + entity_line)
+
+        return "\n".join(lines).strip()
+
+    def compare_documents(
+        self,
+        file_paths: list[str],
+        *,
+        user_query: str = "",
+    ) -> dict[str, Any]:
+        compare_prompt = user_query.strip() or "Compare these documents for pricing, plans, risks, and key differences."
+        return self.answer_question(compare_prompt, file_paths=file_paths, top_k=8)
+
+    def compare_documents_for_display(
+        self,
+        file_paths: list[str],
+        *,
+        user_query: str = "",
+    ) -> str:
+        payload = self.compare_documents(file_paths, user_query=user_query)
+        if not payload.get("success"):
+            detail = str(payload.get("error") or "Comparison failed.").strip()
+            return f"I could not compare those documents. {detail}"
+
+        summary = self._compact_text(str(payload.get("summary") or payload.get("answer") or ""), max_chars=420)
+        comparisons = self._compact_list(payload.get("comparisons"), max_items=4, max_chars=160)
+        risks = self._compact_list(payload.get("risks"), max_items=3, max_chars=120)
+        recommendation = self._compact_text(str(payload.get("recommendation") or ""), max_chars=180)
+
+        lines: list[str] = [summary or "Cross-document comparison generated."]
+
+        if comparisons:
+            lines.append("")
+            lines.append("Key Differences:")
+            for item in comparisons:
+                lines.append(f"- {item}")
+
+        if risks:
+            lines.append("")
+            lines.append("Risk Notes: " + "; ".join(risks))
+
+        if recommendation:
+            lines.append("")
+            lines.append("Recommendation: " + recommendation)
+
+        entity_line = self._format_entities_compact(normalize_entities(payload.get("entities")))
+        if entity_line:
+            lines.append("")
+            lines.append("Entities: " + entity_line)
+
+        return "\n".join(lines).strip()
+
+    def _resolve_target_records(
+        self,
+        question: str,
+        *,
+        file_paths: list[str] | None,
+    ) -> tuple[list[dict[str, Any]], list[str]]:
+        errors: list[str] = []
+        records: list[dict[str, Any]] = []
+
+        if file_paths:
+            validated_paths: list[str] = []
+            seen_paths: set[str] = set()
+
+            for raw_path in file_paths:
+                validated_path, error = validate_file_path(str(raw_path or ""))
+                if error:
+                    errors.append(error)
+                    continue
+
+                normalized = os.path.normcase(os.path.abspath(validated_path))
+                if normalized in seen_paths:
+                    continue
+                seen_paths.add(normalized)
+                validated_paths.append(validated_path)
+
+            records_by_path: dict[str, dict[str, Any]] = {}
+            pending_paths: list[str] = []
+
+            for validated_path in validated_paths:
+                active_record = self._get_active_document_record(validated_path)
+                if active_record is not None:
+                    records_by_path[validated_path] = active_record
+                    continue
+                pending_paths.append(validated_path)
+
+            if pending_paths:
+                max_workers = max(1, min(4, len(pending_paths)))
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    futures = {
+                        executor.submit(self.analyze, path, user_query=question): path
+                        for path in pending_paths
+                    }
+
+                    for future in as_completed(futures):
+                        validated_path = futures[future]
+                        try:
+                            analysis = future.result()
+                        except Exception as exc:
+                            errors.append(f"{Path(validated_path).name}: analysis failed ({exc})")
+                            continue
+
+                        if not analysis.get("success"):
+                            errors.append(
+                                f"{Path(validated_path).name}: {str(analysis.get('error') or 'analysis failed')}"
+                            )
+                            continue
+
+                        record = self._get_active_document_record(validated_path)
+                        if record is not None:
+                            records_by_path[validated_path] = record
+
+            for validated_path in validated_paths:
+                record = records_by_path.get(validated_path)
+                if record is not None:
+                    records.append(record)
+
+            return records, errors
+
+        with self._active_documents_lock:
+            records = list(self._active_documents.values())
+
+        return records, errors
+
+    def _answer_single_document_question(
+        self,
+        question: str,
+        record: dict[str, Any],
+        *,
+        top_k: int,
+    ) -> dict[str, Any]:
+        return self._qa_engine.answer_single_document_question(
+            question,
+            record,
+            top_k=top_k,
+        )
+
+    def _answer_multi_document_question(
+        self,
+        question: str,
+        records: list[dict[str, Any]],
+        *,
+        top_k: int,
+    ) -> dict[str, Any]:
+        return self._qa_engine.answer_multi_document_question(
+            question,
+            records,
+            top_k=top_k,
+        )
+
+    def _register_active_document(self, validated_path: str, result: dict[str, Any], *, file_hash: str | None) -> None:
+        if not result.get("success"):
+            return
+
+        normalized_path = os.path.normcase(os.path.abspath(validated_path))
+        chunks = self._extract_retrieval_chunks(result)
+        if not chunks:
+            return
+
+        record = {
+            "file_path": validated_path,
+            "file_name": str(result.get("file_name") or Path(validated_path).name),
+            "file_hash": file_hash or str(result.get("file_hash") or ""),
+            "summary": str(result.get("summary") or ""),
+            "key_points": result.get("key_points") if isinstance(result.get("key_points"), list) else [],
+            "risks": result.get("risks") if isinstance(result.get("risks"), list) else [],
+            "entities": normalize_entities(result.get("entities")),
+            "chunks": chunks,
+            "indexed_at": int(time.time()),
+        }
+
+        with self._active_documents_lock:
+            self._active_documents[normalized_path] = record
+            self._active_documents.move_to_end(normalized_path)
+            while len(self._active_documents) > self._active_documents_max_entries:
+                self._active_documents.popitem(last=False)
+
+    def _get_active_document_record(self, validated_path: str) -> dict[str, Any] | None:
+        normalized_path = os.path.normcase(os.path.abspath(validated_path))
+        with self._active_documents_lock:
+            record = self._active_documents.get(normalized_path)
+            if record is None:
+                return None
+            self._active_documents.move_to_end(normalized_path)
+            return dict(record)
+
+    def _extract_retrieval_chunks(self, result: dict[str, Any]) -> list[dict[str, Any]]:
+        metadata = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
+        retrieval_chunks = metadata.get("retrieval_chunks") if isinstance(metadata.get("retrieval_chunks"), list) else []
+        normalized_chunks: list[dict[str, Any]] = []
+
+        for item in retrieval_chunks:
+            if not isinstance(item, dict):
+                continue
+            text = " ".join(str(item.get("text") or "").split())
+            if not text:
+                continue
+            normalized_chunks.append(
+                {
+                    "id": str(item.get("id") or f"chunk-{len(normalized_chunks)}"),
+                    "source": str(item.get("source") or "chunk"),
+                    "text": text,
+                }
+            )
+
+        if normalized_chunks:
+            return normalized_chunks[:260]
+
+        blocks: list[tuple[str, str]] = [
+            ("summary", str(result.get("summary") or "")),
+            ("key_points", "\n".join(str(item or "") for item in (result.get("key_points") or []))),
+            ("insights", "\n".join(str(item or "") for item in (result.get("insights") or []))),
+        ]
+
+        tables = result.get("tables") if isinstance(result.get("tables"), list) else []
+        table_lines: list[str] = []
+        for table in tables:
+            if not isinstance(table, dict):
+                continue
+            headers = table.get("headers") if isinstance(table.get("headers"), list) else []
+            rows = table.get("rows") if isinstance(table.get("rows"), list) else []
+            if headers:
+                table_lines.append(" | ".join(str(item or "").strip() for item in headers if str(item or "").strip()))
+            for row in rows[:20]:
+                if isinstance(row, list):
+                    row_text = " | ".join(str(item or "").strip() for item in row if str(item or "").strip())
+                    if row_text:
+                        table_lines.append(row_text)
+        blocks.append(("tables", "\n".join(table_lines)))
+
+        return self._retriever.build_chunks(blocks, max_chunks=220)
+
+    @staticmethod
+    def _empty_entities() -> dict[str, list[str]]:
+        return {
+            "names": [],
+            "dates": [],
+            "prices": [],
+            "companies": [],
+            "plans": [],
+            "features": [],
+        }
+
+    @staticmethod
+    def _format_entities_compact(entities: dict[str, list[str]]) -> str:
+        labels = (
+            ("prices", "prices"),
+            ("plans", "plans"),
+            ("companies", "companies"),
+            ("dates", "dates"),
+            ("names", "names"),
+            ("features", "features"),
+        )
+        parts: list[str] = []
+        normalized = normalize_entities(entities)
+        for key, label in labels:
+            values = normalized.get(key) or []
+            if not values:
+                continue
+            sample = ", ".join(values[:3])
+            parts.append(f"{label}: {sample}")
+            if len(parts) >= 2:
+                break
+        return " | ".join(parts)
 
     @staticmethod
     def _should_cache_result(result: dict[str, Any]) -> bool:
         """Skip cache writes for transient or environment-related degraded outputs."""
         metadata = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
         vision_error = str(metadata.get("vision_error") or "").strip().lower()
-        if vision_error in {"openrouter_api_key_missing", "openrouter_http_429"}:
+        if vision_error in {"vision_api_key_missing", "vision_http_429"}:
             return False
 
         risks = result.get("risks") if isinstance(result.get("risks"), list) else []
         normalized_risks = [str(item or "").strip().lower() for item in risks]
         if any(
-            "openrouter api key is missing" in item or "openrouter_http_429" in item
+            "groq_api_key is missing" in item or "vision_http_429" in item
             for item in normalized_risks
         ):
             return False
 
         summary = str(result.get("summary") or "").strip().lower()
-        if "missing openrouter api key" in summary:
+        if "missing groq_api_key" in summary:
             return False
 
         return True
@@ -163,7 +544,9 @@ class DocumentService:
             return None, None
 
         file_hash = self._compute_file_hash_cached(validated_path)
-        query_fingerprint = hashlib.sha256((user_query or "").strip().lower().encode("utf-8")).hexdigest()
+        # Processing output is document-content driven; keep identity stable across
+        # follow-up questions so Q&A can reuse the same analyzed artifact.
+        query_fingerprint = ""
         cache_key = self._cache.build_cache_key(
             file_hash=file_hash,
             pipeline_version=f"{self.PIPELINE_VERSION}:{sys.version_info.major}.{sys.version_info.minor}",
@@ -173,7 +556,7 @@ class DocumentService:
         )
         return cache_key, file_hash
 
-    def _compute_result(self, validated_path: str) -> dict[str, Any]:
+    def _compute_result(self, validated_path: str, *, user_query: str = "") -> dict[str, Any]:
         progress = PipelineProgress()
 
         logger.info("Starting document analysis: %s", validated_path)
@@ -182,6 +565,7 @@ class DocumentService:
             intelligence = self._pipeline.process(
                 validated_path,
                 progress=progress,
+                user_query=user_query,
             )
         except Exception as exc:
             logger.exception("Document analysis failed: %s", exc)
@@ -192,6 +576,7 @@ class DocumentService:
                 "insights": [],
                 "tables": [],
                 "key_points": [],
+                "entities": self._empty_entities(),
                 "cache_hit": False,
             }
 
@@ -334,6 +719,7 @@ class DocumentService:
         key_points = self._compact_list(result.get("key_points"), max_items=3, max_chars=140)
         insights = self._compact_list(result.get("insights"), max_items=2, max_chars=140)
         risks = self._compact_list(result.get("risks"), max_items=2, max_chars=120)
+        entities = normalize_entities(result.get("entities"))
         tables = result.get("tables") if isinstance(result.get("tables"), list) else []
 
         lines: list[str] = [f"{file_name} — brief summary"]
@@ -351,6 +737,11 @@ class DocumentService:
         if risks:
             lines.append("")
             lines.append(f"Caveats: {'; '.join(risks)}")
+
+        entity_line = self._format_entities_compact(entities)
+        if entity_line:
+            lines.append("")
+            lines.append("Entities: " + entity_line)
 
         if tables:
             lines.append("")

@@ -70,8 +70,6 @@ BOOT_LINES = [
 @dataclass(frozen=True)
 class AppConfig:
     groq_api_key: str
-    openrouter_api_key: str
-    openrouter_base_url: str
     document_vision_primary_model: str
     document_vision_fallback_models: tuple[str, ...]
     document_vision_timeout_seconds: float
@@ -103,6 +101,20 @@ class AppConfig:
     document_cache_db_path: str
     document_cache_ttl_seconds: int
     document_cache_max_entries: int
+    document_vision_max_workers: int
+    document_ocr_max_workers: int
+    document_reasoning_max_chunks: int
+    document_reasoning_text_char_budget: int
+    document_reasoning_ocr_char_budget: int
+    document_reasoning_vision_visible_char_budget: int
+    document_reasoning_vision_layout_char_budget: int
+    document_reasoning_vision_summary_char_budget: int
+    document_reasoning_fast_path_threshold_chars: int
+    document_reasoning_default_fast: bool
+    document_ultra_fast_enabled: bool
+    document_ultra_fast_min_chars: int
+    document_skip_vision_for_text_rich: bool
+    document_text_rich_min_chars: int
 
     @classmethod
     def from_env(cls, env_path: str = ".env") -> "AppConfig":
@@ -114,7 +126,7 @@ class AppConfig:
         )
         fallback_models_raw = os.getenv(
             "DOCUMENT_VISION_FALLBACK_MODELS",
-            "google/gemma-3-12b-it:free,google/gemma-3-4b-it:free",
+            "",
         )
         fallback_models = tuple(
             part.strip()
@@ -124,9 +136,10 @@ class AppConfig:
 
         return cls(
             groq_api_key=os.getenv("GROQ_API_KEY", ""),
-            openrouter_api_key=os.getenv("OPENROUTER_API_KEY", ""),
-            openrouter_base_url=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1/chat/completions"),
-            document_vision_primary_model=os.getenv("DOCUMENT_VISION_PRIMARY_MODEL", "google/gemma-3-27b-it:free"),
+            document_vision_primary_model=os.getenv(
+                "DOCUMENT_VISION_PRIMARY_MODEL",
+                "meta-llama/llama-4-scout-17b-16e-instruct",
+            ),
             document_vision_fallback_models=fallback_models,
             document_vision_timeout_seconds=float(os.getenv("DOCUMENT_VISION_TIMEOUT_SECONDS", "25")),
             document_vision_max_retries_per_model=max(0, int(os.getenv("DOCUMENT_VISION_MAX_RETRIES", "0"))),
@@ -163,4 +176,36 @@ class AppConfig:
             document_cache_db_path=os.getenv("DOCUMENT_CACHE_DB_PATH", os.path.join("data", "document_cache.sqlite3")),
             document_cache_ttl_seconds=int(os.getenv("DOCUMENT_CACHE_TTL_SECONDS", "86400")),
             document_cache_max_entries=int(os.getenv("DOCUMENT_CACHE_MAX_ENTRIES", "256")),
+            document_vision_max_workers=max(1, int(os.getenv("DOCUMENT_VISION_MAX_WORKERS", "4"))),
+            document_ocr_max_workers=max(1, int(os.getenv("DOCUMENT_OCR_MAX_WORKERS", "6"))),
+            document_reasoning_max_chunks=max(4, int(os.getenv("DOCUMENT_REASONING_MAX_CHUNKS", "10"))),
+            document_reasoning_text_char_budget=max(6000, int(os.getenv("DOCUMENT_REASONING_TEXT_CHAR_BUDGET", "22000"))),
+            document_reasoning_ocr_char_budget=max(3000, int(os.getenv("DOCUMENT_REASONING_OCR_CHAR_BUDGET", "9000"))),
+            document_reasoning_vision_visible_char_budget=max(
+                2000,
+                int(os.getenv("DOCUMENT_REASONING_VISION_VISIBLE_CHAR_BUDGET", "7000")),
+            ),
+            document_reasoning_vision_layout_char_budget=max(
+                1000,
+                int(os.getenv("DOCUMENT_REASONING_VISION_LAYOUT_CHAR_BUDGET", "2600")),
+            ),
+            document_reasoning_vision_summary_char_budget=max(
+                800,
+                int(os.getenv("DOCUMENT_REASONING_VISION_SUMMARY_CHAR_BUDGET", "2600")),
+            ),
+            document_reasoning_fast_path_threshold_chars=max(
+                4000,
+                int(os.getenv("DOCUMENT_REASONING_FAST_PATH_THRESHOLD_CHARS", "14000")),
+            ),
+            document_reasoning_default_fast=_env_bool("DOCUMENT_REASONING_DEFAULT_FAST", "true"),
+            document_ultra_fast_enabled=_env_bool("DOCUMENT_ULTRA_FAST_ENABLED", "true"),
+            document_ultra_fast_min_chars=max(
+                300,
+                int(os.getenv("DOCUMENT_ULTRA_FAST_MIN_CHARS", "700")),
+            ),
+            document_skip_vision_for_text_rich=_env_bool("DOCUMENT_SKIP_VISION_FOR_TEXT_RICH", "true"),
+            document_text_rich_min_chars=max(
+                600,
+                int(os.getenv("DOCUMENT_TEXT_RICH_MIN_CHARS", "1800")),
+            ),
         )

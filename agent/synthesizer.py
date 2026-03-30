@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from typing import Any
 
 import requests
 
 from core.settings import AppConfig
+
+
+logger = logging.getLogger(__name__)
 
 
 class Synthesizer:
@@ -63,7 +67,8 @@ class Synthesizer:
             )
             response.raise_for_status()
             payload = response.json()
-        except Exception:
+        except Exception as exc:
+            logger.warning("Synthesizer LLM call failed; using fallback response: %s", exc)
             return self._fallback_response(sanitized_outputs)
 
         choices = payload.get("choices") if isinstance(payload, dict) else None

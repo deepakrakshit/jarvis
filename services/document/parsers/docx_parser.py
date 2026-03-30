@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib.util
 import logging
+import os
 import sys
 from typing import Any
 
@@ -17,11 +18,21 @@ from services.document.parsers.base_parser import BaseParser
 
 logger = logging.getLogger(__name__)
 
-_MAX_VISION_IMAGES = 12
+def _int_env(name: str, default: int, minimum: int, maximum: int) -> int:
+    raw = str(os.getenv(name, str(default))).strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return max(minimum, min(maximum, value))
 
 
 class DocxParser(BaseParser):
     """Parser for Microsoft Word (.docx) documents."""
+
+    @staticmethod
+    def _max_vision_images() -> int:
+        return _int_env("DOCUMENT_DOCX_MAX_VISION_IMAGES", 12, 1, 64)
 
     def parse(self, file_path: str) -> RawExtractionResult:
         try:
@@ -83,7 +94,7 @@ class DocxParser(BaseParser):
                 text_parts.append(text)
 
         tables = self._extract_tables(document)
-        embedded_images = self._extract_images(document)
+        embedded_images = self._extract_images(document, max_images=self._max_vision_images())
         combined_text = "\n\n".join(text_parts)
 
         has_images = bool(embedded_images)
@@ -171,7 +182,7 @@ class DocxParser(BaseParser):
         return tables
 
     @staticmethod
-    def _extract_images(document: Any) -> list[dict[str, Any]]:
+    def _extract_images(document: Any, *, max_images: int) -> list[dict[str, Any]]:
         images: list[dict[str, Any]] = []
         try:
             for rel_id, rel in document.part.rels.items():
@@ -198,7 +209,7 @@ class DocxParser(BaseParser):
                         "bytes": bytes(image_bytes),
                     }
                 )
-                if len(images) >= _MAX_VISION_IMAGES:
+                if len(images) >= max(1, int(max_images)):
                     break
         except Exception as exc:
             logger.debug("DOCX image extraction failed: %s", exc)
