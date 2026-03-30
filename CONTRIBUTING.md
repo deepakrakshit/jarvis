@@ -91,6 +91,7 @@ Checklist:
 * [ ] No breaking changes to existing features
 * [ ] Tested key flows (weather, search/news, IP, system)
 * [ ] Tested at least one document flow (PDF/DOCX/image) if touching `services/document` or runtime routing
+* [ ] Ran stress suite (`python -m unittest discover -s tests/stress -p "test_*.py" -v`) for document-performance-sensitive changes
 * [ ] No unnecessary tool calls
 * [ ] No duplicate logic introduced
 * [ ] Updated docs when behavior or configuration changed

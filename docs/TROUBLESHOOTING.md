@@ -48,16 +48,44 @@
 
 ---
 
+## ❓ Document Q&A Says No Active Context
+
+**Common causes:**
+
+* no document has been successfully analyzed in the current session
+* runtime restarted and active context was cleared
+
+**Fix:**
+
+* run `analyze document` first
+* then ask follow-up questions (pricing, risk, entities, etc.)
+
+---
+
+## ⚖️ Compare Mode Doesn’t Trigger
+
+**Common causes:**
+
+* only one document is currently active
+* compare prompt explicitly asks to upload/select files but only one is chosen
+
+**Fix:**
+
+* choose at least two files in compare flow
+* use prompts like `compare these documents for pricing and risks`
+
+---
+
 ## 👁️ Vision Stage Skipped or Weak
 
 **Common causes:**
 
-* missing `OPENROUTER_API_KEY`
-* OpenRouter rate limit (`429`)
+* missing `GROQ_API_KEY`
+* Vision API rate limit (`429`)
 
 **Fix:**
 
-* set valid `OPENROUTER_API_KEY`
+* set valid `GROQ_API_KEY`
 * retry later or adjust vision retry settings in `.env`
 * pipeline will still attempt OCR fallback when possible
 
@@ -97,6 +125,40 @@
 
 * tune TTS settings (`TTS_CHUNK_CHARS`, queue and fragment parameters)
 * use the UI **SKIP** control to interrupt long replies safely
+
+---
+
+## 🎙️ Microphone Input Not Working
+
+**Common causes:**
+
+* `PyAudio` is missing in the active virtual environment
+* OS-level microphone permission is disabled
+
+**Fix:**
+
+* reinstall dependencies with `pip install -r requirements.txt`
+* verify microphone permission for terminal/desktop runtime
+
+---
+
+## ⚡ Document Processing Feels Slow
+
+Tune the following environment variables in `.env`:
+
+* `DOCUMENT_OCR_MAX_WORKERS`
+* `DOCUMENT_VISION_MAX_WORKERS`
+* `DOCUMENT_PDF_RENDER_DPI`
+* `DOCUMENT_PDF_MAX_VISION_IMAGES`
+* `DOCUMENT_PDF_MAX_OCR_IMAGES`
+* `DOCUMENT_PDF_TABLE_MAX_PAGES`
+* `DOCUMENT_REASONING_DEFAULT_FAST`
+* `DOCUMENT_ULTRA_FAST_ENABLED`
+* `DOCUMENT_ULTRA_FAST_MIN_CHARS`
+* `DOCUMENT_SKIP_VISION_FOR_TEXT_RICH`
+* `DOCUMENT_TEXT_RICH_MIN_CHARS`
+* `DOCUMENT_REASONING_FAST_PATH_THRESHOLD_CHARS`
+* `DOCUMENT_REASONING_*_CHAR_BUDGET`
 
 ---
 

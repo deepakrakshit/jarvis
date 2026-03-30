@@ -33,6 +33,8 @@ It is designed around reliability-first behavior: deterministic tools where requ
 * 🧠 **Planner → Validator → Executor → Synthesizer** loop
 * 🌐 **Live internet evidence** via Serper (including news-style queries)
 * 📄 **Hybrid document pipeline** (text parsing + OCR + vision + reasoning)
+* 🧩 **Retrieval-first document Q&A** with active-document follow-up context
+* 🔍 **Multi-document comparison** with evidence-backed citations
 * 🔁 **Validation and retry controls** for external integrations
 * 🚫 **Identity and hallucination guardrails** for assistant responses
 * 💾 **Session-aware memory** (name, location, search context)
@@ -63,7 +65,9 @@ File Selection + Validation
    ↓
 Parser/OCR/Vision Fusion Pipeline
    ↓
-Structured Intelligence + Display Summary
+Structured Intelligence + Active Document Index
+   ↓
+Follow-up Q&A / Multi-document Compare
 ```
 
 ---
@@ -89,9 +93,12 @@ Structured Intelligence + Display Summary
 
 * PDF, DOCX, DOC (with `.doc` conversion guidance), and image support
 * OCR with PaddleOCR + scanned-PDF handling
-* Vision extraction via OpenRouter model chain
-* Fused reasoning pipeline with structured output (summary, insights, key points, tables)
+* Vision extraction via Groq vision model chain (default: Llama 4 Scout)
+* Fused reasoning pipeline with structured output (summary, insights, key points, tables, entities)
+* Follow-up Q&A over active documents without forcing full reprocessing
+* Multi-document compare mode for pricing/risk/feature decisions
 * SQLite + in-memory cache layers for repeat analyses
+* Configurable high-throughput tuning knobs for OCR, vision workers, and reasoning payload budgets
 
 ### 🎤 Voice + Desktop UX
 
@@ -114,6 +121,9 @@ i am in greater noida
 weather?
 analyze document
 summarize this pdf
+compare these documents
+what is the pricing in this document
+list risks from the file I uploaded
 how r u
 ```
 
@@ -175,10 +185,9 @@ Minimum required keys:
 
 Optional but recommended:
 
-* `OPENROUTER_API_KEY` (document vision stage)
 * `HF_TOKEN` (voice model file download support)
 
-See `.env.example` for the complete configuration set, including document cache, OCR, and vision tuning.
+See `.env.example` for the complete configuration set, including document cache, OCR/vision worker scaling, parser image limits, and adaptive reasoning budgets.
 
 ---
 
@@ -235,9 +244,9 @@ docs/               architecture, routing, commands, testing, troubleshooting
 * **Python 3.10+**
 * **Groq API** (planner/synthesis/general completion)
 * **Serper API** (internet/news evidence retrieval)
-* **OpenRouter** (document vision extraction)
-* **PaddleOCR + PyMuPDF + pdfplumber + python-docx** (document processing)
-* **RealtimeTTS + Piper** (voice output)
+* **Groq Vision** (document vision extraction)
+* **PaddleOCR + PyMuPDF + pdfplumber + python-docx + Pillow** (document processing)
+* **RealtimeTTS + Piper + PyAudio** (voice output/input)
 * **pywebview + Three.js frontend** (desktop UI)
 
 ---
@@ -249,6 +258,26 @@ docs/               architecture, routing, commands, testing, troubleshooting
 * `docs/COMMANDS.md`
 * `docs/TESTING.md`
 * `docs/TROUBLESHOOTING.md`
+
+---
+
+## 🧪 Stress Validation
+
+Run stress-focused checks:
+
+```bash
+python -m unittest discover -s tests/stress -p "test_*.py" -v
+```
+
+Current stress suite includes:
+
+* retrieval throughput
+* entity extraction stability
+* QA engine output-shape checks
+* reasoning payload budget enforcement
+* ultra-fast deterministic reasoning latency checks
+* PDF parser limits (table-page cap + render short-circuit)
+* text-rich fast lane behavior (skip vision/OCR when query is non-visual)
 
 ---
 

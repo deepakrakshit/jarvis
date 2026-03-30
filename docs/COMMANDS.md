@@ -75,9 +75,15 @@ analyze document
 summarize this pdf
 read this docx file
 extract key points from this file
+compare these documents
+compare these two files for pricing and risks
+what is the pricing in this document
+list key entities from this file
+which plan has the highest cost
 ```
 
 When triggered, Jarvis opens a system file selector, validates the path, then runs the document pipeline.
+After successful analysis, follow-up document questions are answered from active document context.
 
 ---
 

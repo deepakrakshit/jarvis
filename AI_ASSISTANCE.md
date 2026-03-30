@@ -66,6 +66,7 @@ Before acceptance:
 * Edge cases and failure scenarios must be evaluated
 * Routing and execution paths must be verified
 * For document pipeline changes, parser/OCR/vision fallback behavior must be validated
+* For document performance changes, stress tests must be executed and reviewed
 
 No AI-generated code is merged without **explicit validation**.
 

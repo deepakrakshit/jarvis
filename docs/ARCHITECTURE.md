@@ -46,9 +46,13 @@ File Selector + Path Validation
   ↓
 DocumentService
   ↓
-Parser + OCR + Vision + Fusion
+Parser + Conditional OCR/Vision + Fusion
   ↓
-Structured Intelligence + Display Summary
+Structured Intelligence (ultra-fast path when eligible) + Active Document Registry
+  ↓
+Retrieval-first QA Engine (single-doc and multi-doc compare)
+  ↓
+Display Summary / Follow-up Answers
 ```
 
 ---
@@ -108,6 +112,7 @@ Handled in `core/runtime.py`
 * Speed test
 * Temporal snapshot
 * Document analysis (optional when dependencies are available)
+* Document follow-up Q&A and cross-document comparison
 
 All tools return **raw structured data (no summarization)**
 
@@ -139,6 +144,9 @@ All tools return **raw structured data (no summarization)**
 * `agent/` → full AI agent system
 * `services/` → deterministic tool layer
 * `services/document/` → document intelligence pipeline modules
+* `services/document/qa_engine.py` → retrieval-backed QA and compare logic
+* `services/document/pipeline_utils.py` → reusable fusion/payload utility functions
+* `services/document/vision_payload.py` → reusable vision payload parsing/normalization helpers
 * `memory/` → session & persistent context
 * `voice/` → speech pipeline
 * `interface/` + `frontend/` → desktop UI bridge and rendering
@@ -155,6 +163,21 @@ Jarvis enforces strict reliability:
 * 🌐 Verified sources for factual queries
 * 🧾 Identity enforcement on final assistant output
 * 📄 Safe document path validation before analysis
+* 🧠 Active-document context is bounded and normalized before reuse
+
+---
+
+## ⚡ Performance Controls
+
+Document throughput is tunable without changing code:
+
+* OCR parallelism: `DOCUMENT_OCR_MAX_WORKERS`
+* Vision parallelism: `DOCUMENT_VISION_MAX_WORKERS`
+* Reasoning budgets: `DOCUMENT_REASONING_*`
+* PDF render/image/table caps: `DOCUMENT_PDF_*`, `DOCUMENT_PDF_TABLE_MAX_PAGES`, `DOCUMENT_DOCX_MAX_VISION_IMAGES`
+* Fast-path default reasoning: `DOCUMENT_REASONING_DEFAULT_FAST`
+* Ultra-fast deterministic lane: `DOCUMENT_ULTRA_FAST_*`
+* Text-rich skip-vision lane: `DOCUMENT_SKIP_VISION_FOR_TEXT_RICH`, `DOCUMENT_TEXT_RICH_MIN_CHARS`
 
 ---
 

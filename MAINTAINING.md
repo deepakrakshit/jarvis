@@ -125,6 +125,7 @@ Before merging any change:
 
 * Syntax validation across modified files
 * No runtime errors
+* Stress suite run for document performance-sensitive changes
 
 ### 🔥 Critical Scenarios
 
@@ -134,6 +135,8 @@ Before merging any change:
 * Internet search + follow-up query
 * Context correction flow
 * Document analysis (PDF or DOCX) with file select + summary output
+* Document follow-up Q&A using active context
+* Multi-document compare flow with at least two files
 
 ### ⚠️ Safety Checks
 
@@ -158,6 +161,9 @@ Before every release:
    * CLI mode
    * GUI mode
    * document flow
+6. Stress test:
+
+   * `python -m unittest discover -s tests/stress -p "test_*.py" -v`
 
 ---
 

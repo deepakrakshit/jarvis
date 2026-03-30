@@ -25,6 +25,7 @@ Handled before the agent loop:
 * greetings and wellbeing
 * search-policy feedback
 * abuse feedback redirect
+* document QA follow-up intent (active document context)
 * document intent (when document service is available)
 
 ---
@@ -63,6 +64,10 @@ Document-like prompts (analyze/summarize/read PDF/DOCX/image) are routed to the 
 * file selection is system-controlled
 * path/type/size validation runs first
 * parser/OCR/vision/fusion pipeline generates final summary
+
+Follow-up prompts (for example, pricing/risk/feature questions) are routed to
+document QA when active document context is available. Compare prompts can route
+to multi-document comparison when at least two active documents are present.
 
 If optional dependencies are unavailable, Jarvis returns a graceful availability message.
 

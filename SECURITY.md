@@ -54,7 +54,7 @@ Pay special attention to:
 * Never commit `.env` files
 * Use `.env.example` as reference
 * Rotate compromised keys immediately
-* Treat `GROQ_API_KEY`, `SERPER_API_KEY`, `OPENROUTER_API_KEY`, and `HF_TOKEN` as sensitive
+* Treat `GROQ_API_KEY`, `SERPER_API_KEY`, and `HF_TOKEN` as sensitive
 
 ---
 
@@ -77,6 +77,7 @@ Current hardening expectations:
 * Paths are validated before parsing
 * Unsupported or oversized files are rejected
 * Fail-open behavior should return safe errors, not partial unsafe execution
+* Document cache stores derived intelligence locally; protect host access and clear cache on sensitive systems
 
 ---
 

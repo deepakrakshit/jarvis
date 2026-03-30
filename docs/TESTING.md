@@ -8,8 +8,26 @@
 ## ⚡ Fast Validation
 
 ```bash
-python -m compileall app agent core services interface voice
+python -m compileall app agent core services interface voice tests
 ```
+
+---
+
+## 🧨 Stress Suite
+
+```bash
+python -m unittest discover -s tests/stress -p "test_*.py" -v
+```
+
+Includes:
+
+* retrieval throughput under repeated query load
+* entity extraction stability under repeated passes
+* QA engine single-doc and multi-doc output-shape checks
+* reasoning payload budget enforcement for large fused content
+* ultra-fast deterministic reasoning latency checks
+* PDF parser guardrail limits (table-page cap and render short-circuit)
+* text-rich fast lane verification (vision/OCR skip when safe)
 
 ---
 
@@ -49,6 +67,8 @@ Must route through internet evidence and synthesize cleanly.
 * Trigger with `analyze document` or `summarize this pdf`
 * Validate file picker behavior and path validation
 * Confirm parser/OCR/vision fallback produces stable summary output
+* Run follow-up question without re-selecting file (active-doc QA)
+* Compare mode with two selected files
 
 ---
 
