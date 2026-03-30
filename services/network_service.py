@@ -22,6 +22,10 @@ class SpeedtestResult:
     upload_mbps: float
     ping_ms: float
     timestamp: float
+    server_name: str = ""
+    server_host: str = ""
+    server_country: str = ""
+    server_sponsor: str = ""
 
 
 class NetworkService:
@@ -37,6 +41,7 @@ class NetworkService:
         self._speedtest_running = False
         self._last_speedtest: SpeedtestResult | None = None
         self._last_speedtest_error: str | None = None
+        self._min_sync_speedtest_seconds = 3.4
 
         self._boot_time = time.time()
         if psutil is not None:
@@ -63,6 +68,51 @@ class NetworkService:
         if normalized in {"united states", "usa", "us"}:
             return 100.0, 200.0, "United States"
         return 50.0, 150.0, (country or "your region")
+
+    @staticmethod
+    def _speed_quality_message(download_mbps: float, upload_mbps: float) -> str:
+        if download_mbps >= 100 and upload_mbps >= 20:
+            return "Your connection looks excellent for streaming, calls, and large file transfers."
+        if download_mbps >= 50 and upload_mbps >= 10:
+            return "Your connection looks good for everyday use, meetings, and HD streaming."
+        if download_mbps >= 25 and upload_mbps >= 5:
+            return "Your connection is usable, but heavier workloads may feel slower at times."
+        return "Your connection is currently on the slower side; uploads and high-quality streaming may lag."
+
+    def _render_speedtest_result(self, result: SpeedtestResult) -> str:
+        quality = self._speed_quality_message(result.download_mbps, result.upload_mbps)
+        message = (
+            "Internet speed test results:\n"
+            f"Download Speed: {result.download_mbps:.2f} Mbps\n"
+            f"Upload Speed: {result.upload_mbps:.2f} Mbps\n\n"
+            f"{quality}"
+        )
+        return self.personality.finalize(message)
+
+    def _execute_speedtest_once(self) -> tuple[SpeedtestResult | None, str | None]:
+        try:
+            import speedtest  # type: ignore
+
+            tester = speedtest.Speedtest(secure=True)
+            server = tester.get_best_server() or {}
+            download_bps = float(tester.download(threads=4))
+            upload_bps = float(tester.upload(threads=4, pre_allocate=False))
+            ping_ms = float(tester.results.ping)
+            result = SpeedtestResult(
+                download_mbps=download_bps / 1_000_000.0,
+                upload_mbps=upload_bps / 1_000_000.0,
+                ping_ms=ping_ms,
+                timestamp=time.time(),
+                server_name=str(server.get("name") or ""),
+                server_host=str(server.get("host") or ""),
+                server_country=str(server.get("country") or ""),
+                server_sponsor=str(server.get("sponsor") or ""),
+            )
+            return result, None
+        except ModuleNotFoundError:
+            return None, "missing_speedtest_module"
+        except Exception as exc:
+            return None, str(exc)
 
     def get_public_ip(self) -> str | None:
         payload = self.http.get_json("https://api.ipify.org", params={"format": "json"})
@@ -140,32 +190,44 @@ class NetworkService:
         return self.personality.finalize(message)
 
     def _run_speedtest_worker(self) -> None:
-        error: str | None = None
-        result: SpeedtestResult | None = None
-
-        try:
-            import speedtest  # type: ignore
-
-            tester = speedtest.Speedtest(secure=True)
-            tester.get_best_server()
-            download_bps = float(tester.download(threads=4))
-            upload_bps = float(tester.upload(threads=4, pre_allocate=False))
-            ping_ms = float(tester.results.ping)
-            result = SpeedtestResult(
-                download_mbps=download_bps / 1_000_000.0,
-                upload_mbps=upload_bps / 1_000_000.0,
-                ping_ms=ping_ms,
-                timestamp=time.time(),
-            )
-        except ModuleNotFoundError:
-            error = "missing_speedtest_module"
-        except Exception as exc:
-            error = str(exc)
+        result, error = self._execute_speedtest_once()
 
         with self._speedtest_lock:
             self._speedtest_running = False
             self._last_speedtest = result
             self._last_speedtest_error = error
+
+    def run_speedtest_now(self) -> str:
+        with self._speedtest_lock:
+            if self._speedtest_running:
+                return self.personality.finalize("Speed test is already running. Ask for the result in a few seconds.")
+
+            self._speedtest_running = True
+            self._last_speedtest_error = None
+
+        result: SpeedtestResult | None = None
+        error: str | None = None
+        started_at = time.perf_counter()
+        try:
+            result, error = self._execute_speedtest_once()
+            if result is not None:
+                elapsed = time.perf_counter() - started_at
+                if elapsed < self._min_sync_speedtest_seconds:
+                    time.sleep(self._min_sync_speedtest_seconds - elapsed)
+        finally:
+            with self._speedtest_lock:
+                self._speedtest_running = False
+                self._last_speedtest = result
+                self._last_speedtest_error = error
+
+        if result is None:
+            if error == "missing_speedtest_module" or (error and "No module named 'speedtest'" in error):
+                return self.personality.finalize("Speed test couldn't run because required module is missing.")
+            return self.personality.finalize(
+                "I couldn't confirm your speed yet because the speed test failed. Please try again."
+            )
+
+        return self._render_speedtest_result(result)
 
     def start_speedtest(self) -> str:
         with self._speedtest_lock:
@@ -183,7 +245,7 @@ class NetworkService:
 
         return self.personality.finalize("Speed test started in the background. Ask for the result shortly.")
 
-    def get_last_speedtest_snapshot(self) -> dict[str, float] | None:
+    def get_last_speedtest_snapshot(self) -> dict[str, float | str] | None:
         with self._speedtest_lock:
             if self._last_speedtest is None:
                 return None
@@ -194,6 +256,10 @@ class NetworkService:
             "upload_mbps": round(res.upload_mbps, 3),
             "ping_ms": round(res.ping_ms, 3),
             "timestamp": round(res.timestamp, 3),
+            "server_name": str(res.server_name or ""),
+            "server_host": str(res.server_host or ""),
+            "server_country": str(res.server_country or ""),
+            "server_sponsor": str(res.server_sponsor or ""),
         }
 
     def get_last_speedtest_error(self) -> str | None:
@@ -222,30 +288,7 @@ class NetworkService:
 
             res = self._last_speedtest
 
-        location = self.get_location_from_ip()
-        avg_low, avg_high, country_label = self._speed_benchmark(location.country if location else None)
-
-        if res.download_mbps < avg_low:
-            verdict = (
-                f"This is below typical {country_label} household ranges ({avg_low:.0f}-{avg_high:.0f} Mbps). "
-                "Improvement steps: router placement, wired tests, and ISP plan checks."
-            )
-        elif res.download_mbps <= avg_high:
-            verdict = (
-                f"This is within common {country_label} household ranges ({avg_low:.0f}-{avg_high:.0f} Mbps)."
-            )
-        else:
-            verdict = (
-                f"This is above common {country_label} household ranges ({avg_low:.0f}-{avg_high:.0f} Mbps)."
-            )
-
-        message = (
-            f"Download: {res.download_mbps:.2f} Mbps\n"
-            f"Upload: {res.upload_mbps:.2f} Mbps\n"
-            f"Ping: {res.ping_ms:.1f} ms\n\n"
-            f"{verdict}"
-        )
-        return self.personality.finalize(message)
+        return self._render_speedtest_result(res)
 
     def get_speedtest_assessment(self) -> str:
         with self._speedtest_lock:
@@ -285,11 +328,19 @@ class NetworkService:
 
     def handle_speedtest_query(self, text: str) -> str:
         query = (text or "").lower()
+
+        if any(word in query for word in ("background", "in background", "run in background", "start in background")):
+            return self.start_speedtest()
+
         if any(word in query for word in ("average", "fast", "slow", "good", "better", "improve", "upgrade")):
             return self.get_speedtest_assessment()
+
         if any(word in query for word in ("result", "status", "report", "latest", "show", "check", "again")):
+            if not self.is_speedtest_running() and self.get_last_speedtest_snapshot() is None:
+                return self.run_speedtest_now()
             return self.get_speedtest_result()
-        return self.start_speedtest()
+
+        return self.run_speedtest_now()
 
     def close(self) -> None:
         with self._speedtest_lock:
