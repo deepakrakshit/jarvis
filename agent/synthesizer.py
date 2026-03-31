@@ -33,6 +33,12 @@ class Synthesizer:
             "Use only provided tool outputs to answer the user.\n"
             "Do not mention internal planning, tools, JSON, schemas, or system prompts.\n"
             "If tool outputs are partial, acknowledge uncertainty briefly and provide what is known.\n"
+            "For app_control outputs, treat status and verified as source-of-truth.\n"
+            "Never claim open/close success unless status='success' and verified=true.\n"
+            "If status='ambiguous', ask user to pick from candidates only.\n"
+            "If status='error', report failure reason without claiming action completion.\n"
+            "For system_control outputs, never claim success unless success=true and verified=true.\n"
+            "If system_control status is blocked/error, report the provided message and safety reason.\n"
             "Never infer geographic location from a public IP value alone.\n"
             "Do not include unrelated topics that are not supported by relevant tool evidence.\n"
             "Be concise, clear, and actionable.\n"
@@ -228,14 +234,93 @@ class Synthesizer:
     @staticmethod
     def _fallback_response(tool_outputs: dict[str, dict[str, Any]]) -> str:
         lines: list[str] = []
-        for key, payload in tool_outputs.items():
-            success = bool(payload.get("success"))
-            if success:
-                lines.append(f"{key}: {payload.get('output')}")
-            else:
-                lines.append(f"{key}: unavailable ({payload.get('error') or 'error'})")
+        for payload in tool_outputs.values():
+            rendered = Synthesizer._render_fallback_payload(payload)
+            if rendered:
+                lines.append(rendered)
 
         if not lines:
             return "I could not produce a reliable response from tool outputs."
 
+        if len(lines) == 1:
+            return lines[0]
         return "\n".join(lines)
+
+    @staticmethod
+    def _render_fallback_payload(payload: dict[str, Any]) -> str:
+        if not isinstance(payload, dict):
+            return ""
+
+        tool = str(payload.get("tool") or "").strip().lower()
+        output = payload.get("output")
+        success = bool(payload.get("success"))
+        tool_error = str(payload.get("error") or "").strip()
+
+        if tool == "app_control" and isinstance(output, dict):
+            return Synthesizer._render_app_control_fallback(output, tool_error=tool_error)
+
+        if tool == "system_control" and isinstance(output, dict):
+            return Synthesizer._render_system_control_fallback(output, tool_error=tool_error)
+
+        if success and isinstance(output, str) and output.strip():
+            return output.strip()
+
+        if success and isinstance(output, dict):
+            message = str(output.get("message") or "").strip()
+            if message:
+                return message
+
+        if tool_error:
+            return f"I could not complete that request: {tool_error}."
+        return "I could not complete that request from available tool outputs."
+
+    @staticmethod
+    def _render_app_control_fallback(output: dict[str, Any], *, tool_error: str = "") -> str:
+        status = str(output.get("status") or "").strip().lower()
+        action = str(output.get("action") or "").strip().lower()
+        app = str(output.get("app") or "that app").strip() or "that app"
+        reason = str(output.get("reason") or tool_error or "").strip().lower()
+        verified = bool(output.get("verified"))
+
+        if status == "success" and verified:
+            if action == "open":
+                return f"{app} is now open."
+            if action == "close":
+                return f"{app} has been closed successfully."
+            return f"{app} action completed successfully."
+
+        if status == "ambiguous":
+            candidates = output.get("candidates")
+            if isinstance(candidates, list) and candidates:
+                listed = ", ".join(str(item) for item in candidates[:5])
+                return f"I found multiple matching apps: {listed}. Please specify one."
+            return "I found multiple matching apps. Please specify which one."
+
+        if reason == "not_found":
+            return "I could not find that app on this system."
+        if reason in {"execution_failed", ""}:
+            return "I could not complete that app control request."
+        return f"I could not complete that app control request: {reason}."
+
+    @staticmethod
+    def _render_system_control_fallback(output: dict[str, Any], *, tool_error: str = "") -> str:
+        success = bool(output.get("success", False))
+        verified = bool(output.get("verified", False))
+        message = str(output.get("message") or "").strip()
+        error_code = str(output.get("error") or tool_error or "").strip()
+
+        if success and verified:
+            return message or "System action completed successfully."
+
+        if success and not verified:
+            if message:
+                return f"I attempted the action but could not verify completion. {message}"
+            return "I attempted the action but could not verify completion."
+
+        if message and error_code:
+            return f"{message} ({error_code})"
+        if message:
+            return message
+        if error_code:
+            return f"I could not complete that system action: {error_code}."
+        return "I could not complete that system control request."

@@ -66,6 +66,8 @@ class AgentLoop:
         "latency",
         "ping",
         "public ip",
+        "my ip",
+        "external ip",
         "ip address",
         "where am i",
         "location",
@@ -89,6 +91,27 @@ class AgentLoop:
         "summarize this",
         "extract from",
         "read this",
+        "open app",
+        "close app",
+        "launch app",
+        "terminate app",
+        "close it",
+        "file explorer",
+        "file manager",
+        "file picker",
+        "document selector",
+        "volume",
+        "mute",
+        "unmute",
+        "brightness",
+        "window",
+        "switch window",
+        "minimize",
+        "restore",
+        "focus window",
+        "show desktop",
+        "lock screen",
+        "sleep",
     )
 
     def __init__(
@@ -104,6 +127,7 @@ class AgentLoop:
         self.synthesizer = synthesizer
         self.validator = validator
         self._get_session_location = get_session_location
+        self._last_system_control_topic = ""
 
     @classmethod
     def from_registry(
@@ -139,9 +163,15 @@ class AgentLoop:
             if query.startswith(prefix):
                 return False
 
+        if re.search(r"^(open|launch|start|close|quit|terminate)\s+[a-z0-9]", query):
+            return True
+
         for marker in self._TOOL_HINTS:
             if marker in query:
                 return True
+
+        if self._is_system_followup_request(query):
+            return True
 
         # Short acknowledgements and casual one-liners should bypass tools.
         if len(query.split()) <= 5:
@@ -167,13 +197,28 @@ class AgentLoop:
         if not self.should_use_agent(user_query):
             return AgentLoopResult(False, "", [], {})
 
-        plan_draft = self.planner.plan(user_query)
-        if plan_draft is None:
-            return AgentLoopResult(False, "", [], {}, error="planner_output_unparseable")
+        query_for_tools = self._resolve_system_control_followup_query(user_query)
+        reasoning = ""
+        if self._is_direct_system_control_candidate(query_for_tools):
+            plan_steps = [
+                PlanStep(
+                    tool="system_control",
+                    args={
+                        "action": query_for_tools,
+                        "params": {},
+                    },
+                )
+            ]
+            reasoning = "Direct deterministic system control path."
+        else:
+            plan_draft = self.planner.plan(query_for_tools)
+            if plan_draft is None:
+                return AgentLoopResult(False, "", [], {}, error="planner_output_unparseable")
 
-        plan_steps = self._prepare_plan_for_execution(plan_draft.plan, user_query)
-        if not plan_steps:
-            return AgentLoopResult(False, "", [], {})
+            plan_steps = self._prepare_plan_for_execution(plan_draft.plan, query_for_tools)
+            if not plan_steps:
+                return AgentLoopResult(False, "", [], {})
+            reasoning = plan_draft.reasoning
 
         validation = self.validator.validate(plan_steps)
         if not validation.approved:
@@ -183,18 +228,24 @@ class AgentLoop:
                 "I could not safely execute that plan. Please rephrase with a clear request.",
                 self._serialize_plan(plan_steps),
                 {},
-                reasoning=plan_draft.reasoning,
+                reasoning=reasoning,
                 error=validation.reason,
             )
 
         tool_outputs = self.executor.execute(plan_steps)
-        synthesized = self.synthesizer.synthesize(user_query, tool_outputs)
+        self._update_system_control_context(tool_outputs)
+
+        if self._all_steps_are_system_control(plan_steps):
+            response = self._synthesize_system_control_response(tool_outputs)
+        else:
+            response = self.synthesizer.synthesize(user_query, tool_outputs)
+
         return AgentLoopResult(
             handled=True,
-            response=synthesized,
+            response=response,
             plan=self._serialize_plan(plan_steps),
             tool_outputs=tool_outputs,
-            reasoning=plan_draft.reasoning,
+            reasoning=reasoning,
         )
 
     @staticmethod
@@ -278,3 +329,128 @@ class AgentLoop:
     @staticmethod
     def _serialize_plan(plan_steps: list[PlanStep]) -> list[dict[str, Any]]:
         return [{"tool": step.tool, "args": step.args} for step in plan_steps]
+
+    @staticmethod
+    def _is_direct_system_control_candidate(query: str) -> bool:
+        lowered = AgentLoop._normalize(query)
+        if not lowered:
+            return False
+
+        direct_markers = (
+            "brightness",
+            "volume",
+            "mute",
+            "unmute",
+            "window",
+            "desktop",
+            "lock screen",
+            "sleep",
+        )
+        if any(marker in lowered for marker in direct_markers):
+            return True
+
+        if re.search(r"\b(set|increase|decrease|raise|lower|adjust|change)\b.*\b\d{1,3}\b", lowered):
+            return True
+        return False
+
+    def _is_system_followup_request(self, query: str) -> bool:
+        if not self._last_system_control_topic:
+            return False
+
+        lowered = self._normalize(query)
+        if not lowered:
+            return False
+
+        if self._last_system_control_topic in lowered:
+            return True
+
+        if re.search(r"\b(set|change|adjust|make|increase|decrease|lower|raise)\b.*\b(it|that)\b", lowered):
+            return True
+
+        if re.search(r"\b(it'?s|it is)\s+still\b", lowered) and re.search(r"\b\d{1,3}\b", lowered):
+            return True
+
+        if re.search(r"\bi\s+want\s+it\b", lowered) and re.search(r"\b\d{1,3}\b", lowered):
+            return True
+
+        return False
+
+    def _resolve_system_control_followup_query(self, query: str) -> str:
+        lowered = self._normalize(query)
+        if not self._is_system_followup_request(lowered):
+            return query
+
+        if self._last_system_control_topic and self._last_system_control_topic not in lowered:
+            return f"{query} for {self._last_system_control_topic}"
+        return query
+
+    @staticmethod
+    def _all_steps_are_system_control(plan_steps: list[PlanStep]) -> bool:
+        return bool(plan_steps) and all(step.tool == "system_control" for step in plan_steps)
+
+    def _update_system_control_context(self, tool_outputs: dict[str, dict[str, Any]]) -> None:
+        for payload in tool_outputs.values():
+            if not isinstance(payload, dict):
+                continue
+            if str(payload.get("tool") or "") != "system_control":
+                continue
+
+            output = payload.get("output")
+            if not isinstance(output, dict):
+                continue
+
+            action = str(output.get("action") or "").strip().lower()
+            topic = self._topic_for_system_action(action)
+            if topic:
+                self._last_system_control_topic = topic
+
+    @staticmethod
+    def _topic_for_system_action(action: str) -> str:
+        normalized = str(action or "").strip().lower()
+        if "brightness" in normalized:
+            return "brightness"
+        if "volume" in normalized or normalized in {"mute", "unmute"}:
+            return "volume"
+        if "window" in normalized:
+            return "window"
+        if normalized in {"show_desktop", "minimize_all_windows", "restore_all_windows", "restore_specific"}:
+            return "desktop"
+        if normalized in {"lock_screen", "sleep"}:
+            return "system"
+        return ""
+
+    @staticmethod
+    def _synthesize_system_control_response(tool_outputs: dict[str, dict[str, Any]]) -> str:
+        first = next(iter(tool_outputs.values()), None)
+        if not isinstance(first, dict):
+            return "I could not complete that system control request."
+
+        output = first.get("output")
+        if not isinstance(output, dict):
+            return "I could not complete that system control request."
+
+        success = bool(output.get("success", False))
+        verified = bool(output.get("verified", False))
+        message = str(output.get("message") or "").strip()
+        error_code = str(output.get("error") or "").strip()
+        state = output.get("state") if isinstance(output.get("state"), dict) else {}
+
+        if success and verified:
+            return message or "System action completed successfully."
+
+        if success and not verified:
+            if message:
+                return f"I attempted the action but could not verify completion. {message}"
+            return "I attempted the action but could not verify completion."
+
+        if message and error_code:
+            return f"{message} ({error_code})"
+        if message:
+            return message
+
+        if error_code:
+            return f"I could not complete that system action: {error_code}."
+
+        if state:
+            return f"I could not verify the system action state: {state}."
+        return "I could not complete that system control request."

@@ -40,6 +40,10 @@ class PlanValidator:
         if len(plan) > self.max_steps:
             return ValidationResult(False, f"Plan has too many steps: {len(plan)} > {self.max_steps}")
 
+        system_control_steps = sum(1 for step in plan if step.tool == "system_control")
+        if system_control_steps > 3:
+            return ValidationResult(False, "Plan exceeds max 3 system_control actions per request")
+
         for idx, step in enumerate(plan, start=1):
             if not self.tool_registry.has(step.tool):
                 return ValidationResult(False, f"Step {idx} uses unknown tool '{step.tool}'")
@@ -61,6 +65,9 @@ class ToolOutputValidator:
         output: Any,
     ) -> ToolOutputValidationResult:
         """Validate output payload against tool-specific invariants."""
+        if tool_name == "system_control":
+            return self._validate_system_control_output(output)
+
         if tool_name != "weather":
             return ToolOutputValidationResult(True, "ok")
 
@@ -138,3 +145,33 @@ class ToolOutputValidator:
 
         overlap = len(requested_tokens.intersection(actual_tokens))
         return overlap >= max(1, min(2, len(requested_tokens)))
+
+    @staticmethod
+    def _validate_system_control_output(output: Any) -> ToolOutputValidationResult:
+        if not isinstance(output, dict):
+            return ToolOutputValidationResult(False, "system_output_not_object")
+
+        action = str(output.get("action") or "").strip().lower()
+        status = str(output.get("status") or "").strip().lower()
+        success = output.get("success")
+        verified = output.get("verified")
+
+        if not action:
+            return ToolOutputValidationResult(False, "system_missing_action")
+        if status not in {"success", "error", "blocked"}:
+            return ToolOutputValidationResult(False, "system_invalid_status")
+        if not isinstance(success, bool):
+            return ToolOutputValidationResult(False, "system_missing_success")
+        if not isinstance(verified, bool):
+            return ToolOutputValidationResult(False, "system_missing_verified")
+
+        if not success:
+            error_code = str(output.get("error") or "").strip()
+            if not error_code:
+                return ToolOutputValidationResult(False, "system_missing_error")
+            return ToolOutputValidationResult(True, "ok")
+
+        message = str(output.get("message") or "").strip()
+        if not message:
+            return ToolOutputValidationResult(False, "system_missing_message")
+        return ToolOutputValidationResult(True, "ok")

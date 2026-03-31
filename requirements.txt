@@ -6,7 +6,12 @@ pywebview
 psutil
 pathvalidate
 speedtest-cli
+rapidfuzz
 groq
+pycaw
+comtypes
+screen-brightness-control
+pygetwindow
 
 # Document Analysis Dependencies
 PyMuPDF

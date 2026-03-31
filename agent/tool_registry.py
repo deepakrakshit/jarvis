@@ -6,6 +6,8 @@ from typing import Any, Callable
 
 from services.network_service import NetworkService
 from services.search_service import SearchService
+from services.system.app_control import AppControlService
+from services.system.system_service import SystemControlService
 from services.weather_service import WeatherService
 
 try:
@@ -120,11 +122,14 @@ def build_default_tool_registry(
     weather_service: WeatherService,
     search_service: SearchService,
     document_service: object | None = None,
+    memory_store: Any | None = None,
     get_session_location: Callable[[], str | None] | None = None,
     set_session_location: Callable[[str], None] | None = None,
 ) -> ToolRegistry:
     """Build the default production tool registry for the agent loop."""
     registry = ToolRegistry()
+    app_control_service = AppControlService(memory_store=memory_store)
+    system_control_service = SystemControlService()
 
     def _normalize_location(value: str) -> str:
         cleaned = re.sub(r"\s+", " ", (value or "").strip())
@@ -201,11 +206,27 @@ def build_default_tool_registry(
     def system_status_tool(_args: dict[str, Any]) -> Any:
         return network_service.get_system_status_snapshot()
 
-    def temporal_tool(_args: dict[str, Any]) -> Any:
-        return network_service.get_temporal_snapshot()
+    def temporal_tool(args: dict[str, Any]) -> Any:
+        query = str(args.get("query") or "").strip()
+        return network_service.get_temporal_snapshot(query)
 
     def update_status_tool(_args: dict[str, Any]) -> Any:
         return network_service.get_update_status()
+
+    def app_control_tool(args: dict[str, Any]) -> Any:
+        action = str(args.get("action") or "").strip().lower()
+        app_name = str(args.get("app_name") or "").strip()
+        return app_control_service.control(action=action, app_name=app_name)
+
+    def system_control_tool(args: dict[str, Any]) -> Any:
+        action = str(args.get("action") or args.get("command") or args.get("query") or "").strip().lower()
+        params = args.get("params")
+        safe_params = dict(params) if isinstance(params, dict) else {}
+        if not safe_params:
+            for key in ("step", "level", "app", "app_name", "actions_in_request"):
+                if key in args:
+                    safe_params[key] = args.get(key)
+        return system_control_service.control(action=action, params=safe_params)
 
     registry.register(
         ToolDefinition(
@@ -311,6 +332,48 @@ def build_default_tool_registry(
             fn=update_status_tool,
             timeout_seconds=8.0,
             safe_to_parallelize=True,
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="app_control",
+            description=(
+                "Control desktop applications deterministically. "
+                "Supports open and close actions with OS-level verification."
+            ),
+            input_schema={
+                "type": "object",
+                "required": ["action"],
+                "properties": {
+                    "action": {"type": "string"},
+                    "app_name": {"type": "string"},
+                },
+            },
+            fn=app_control_tool,
+            timeout_seconds=35.0,
+            safe_to_parallelize=False,
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="system_control",
+            description=(
+                "Deterministic operating-system controls with strict validation and safety policy. "
+                "Supports volume, brightness, window, desktop, and safe system actions."
+            ),
+            input_schema={
+                "type": "object",
+                "required": ["action"],
+                "properties": {
+                    "action": {"type": "string"},
+                    "params": {"type": "object"},
+                },
+            },
+            fn=system_control_tool,
+            timeout_seconds=20.0,
+            safe_to_parallelize=False,
         )
     )
 

@@ -58,6 +58,10 @@ class JarvisRuntime:
         re.IGNORECASE,
     )
     SPEEDTEST_RE = re.compile(r"\b(speed\s*test|speedtest|internet speed|network speed)\b", re.IGNORECASE)
+    CONNECTIVITY_RE = re.compile(
+        r"\b(internet connectivity|network connectivity|connectivity status|am i online|online status|check connectivity|check internet connectivity|check network connectivity)\b",
+        re.IGNORECASE,
+    )
     PUBLIC_IP_RE = re.compile(r"\b(public ip|my ip|ip address|external ip|current ip|current ip address)\b", re.IGNORECASE)
     LOCATION_RE = re.compile(r"\b(where am i|my location|current location|location from ip|network location)\b", re.IGNORECASE)
     STATUS_RE = re.compile(
@@ -69,6 +73,14 @@ class JarvisRuntime:
         re.IGNORECASE,
     )
     UPDATE_RE = re.compile(r"\b(system update|software update|update status|version|patch|upgrade)\b", re.IGNORECASE)
+    HELP_RE = re.compile(
+        r"^\s*(help|help me|commands|list commands|list available commands|available commands|show commands)\s*$",
+        re.IGNORECASE,
+    )
+    CAPABILITIES_RE = re.compile(
+        r"\b(what can you do|your capabilities|capabilities|what do you do|how can you help)\b",
+        re.IGNORECASE,
+    )
     SEARCH_RE = re.compile(r"\b(search|internet|web|google|look up|lookup|find online)\b", re.IGNORECASE)
     SEARCH_POLICY_RE = re.compile(
         r"\b(check|use|verify)\b.*\b(internet|web|online)\b|\bknowledge cutoff\b",
@@ -85,8 +97,18 @@ class JarvisRuntime:
         re.IGNORECASE,
     )
     DOCUMENT_RE = re.compile(
-        r"\b(analyze|summarize|read|extract|parse|process|open|load|review|upload|select|compare)\b.*\b(document|documents|doc|docs|pdf|pdfs|docx|file|files|image|images|scan)\b"
+        r"\b(analyze|summarize|read|extract|parse|process|review|upload|select|compare)\b.*\b(document|documents|doc|docs|pdf|pdfs|docx|file|files|image|images|scan)\b"
+        r"|\b(open|load)\b.*\b(document|documents|doc|docs|pdf|pdfs|docx|image|images|scan)\b"
         r"|\b(document|pdf|docx)\b",
+        re.IGNORECASE,
+    )
+    DOCUMENT_PICKER_RE = re.compile(
+        r"\b(open|show|launch|start)\b.*\b(file\s*picker|document\s*selector|document\s*picker)\b"
+        r"|\b(select|choose|pick|upload)\b.*\b(document|pdf|docx|doc|image|scan|file)\b",
+        re.IGNORECASE,
+    )
+    FILE_MANAGER_RE = re.compile(
+        r"\b(file\s*explorer|file\s*manager|windows\s*explorer|explorer)\b",
         re.IGNORECASE,
     )
     DOCUMENT_COMPARE_RE = re.compile(
@@ -143,6 +165,7 @@ class JarvisRuntime:
             weather_service=self.weather_service,
             search_service=self.search_service,
             document_service=self.document_service,
+            memory_store=self.memory,
             get_session_location=self._get_session_location,
             set_session_location=self._set_session_location,
         )
@@ -176,6 +199,8 @@ class JarvisRuntime:
             flags=re.IGNORECASE,
         )[0]
         candidate = re.sub(r"\s+", " ", candidate).strip(" .,!?;:")
+        if candidate.lower().startswith("in "):
+            candidate = candidate[3:].strip(" .,!?;:")
         return candidate
 
     def _capture_session_location(self, user_text: str) -> None:
@@ -222,42 +247,114 @@ class JarvisRuntime:
             priority=10,
         )
         router.register(
+            name="set_session_location",
+            matcher=self._is_location_declaration_only,
+            handler=self._handle_location_declaration,
+            priority=11,
+        )
+        router.register(
             name="wellbeing",
             matcher=self._is_wellbeing_request,
             handler=self._handle_wellbeing,
             priority=12,
         )
         router.register(
+            name="capabilities",
+            matcher=lambda text: bool(self.CAPABILITIES_RE.search(text or "")),
+            handler=self._handle_capabilities,
+            priority=13,
+        )
+        router.register(
+            name="help",
+            matcher=lambda text: bool(self.HELP_RE.search(text or "")),
+            handler=self._handle_help,
+            priority=14,
+        )
+        router.register(
             name="search_policy",
             matcher=self._is_search_policy_feedback,
             handler=self._handle_search_policy_feedback,
-            priority=13,
+            priority=15,
         )
         router.register(
             name="abuse_feedback",
             matcher=self._is_abuse_feedback,
             handler=self._handle_abuse_feedback,
-            priority=14,
+            priority=16,
+        )
+        router.register(
+            name="ambiguous_season",
+            matcher=self._is_ambiguous_season_query,
+            handler=self._handle_ambiguous_season_query,
+            priority=17,
         )
         router.register(
             name="speedtest",
             matcher=self._is_speedtest_request,
             handler=self._handle_speedtest_query,
-            priority=15,
+            priority=18,
+        )
+        router.register(
+            name="connectivity",
+            matcher=lambda text: bool(self.CONNECTIVITY_RE.search(text or "")),
+            handler=self._handle_connectivity,
+            priority=19,
+        )
+        router.register(
+            name="public_ip",
+            matcher=lambda text: bool(self.PUBLIC_IP_RE.search(text or "")),
+            handler=self._handle_public_ip,
+            priority=20,
+        )
+        router.register(
+            name="network_location",
+            matcher=lambda text: bool(self.LOCATION_RE.search(text or "")) and not bool(self.PUBLIC_IP_RE.search(text or "")),
+            handler=self._handle_network_location,
+            priority=21,
+        )
+        router.register(
+            name="weather",
+            matcher=lambda text: bool(self.WEATHER_RE.search(text or "")),
+            handler=self._handle_weather,
+            priority=22,
+        )
+        router.register(
+            name="system_status",
+            matcher=lambda text: bool(self.STATUS_RE.search(text or "")),
+            handler=self._handle_system_status,
+            priority=23,
+        )
+        router.register(
+            name="temporal",
+            matcher=lambda text: bool(self.TEMPORAL_RE.search(text or "")),
+            handler=self._handle_temporal,
+            priority=24,
+        )
+        router.register(
+            name="update_status",
+            matcher=lambda text: bool(self.UPDATE_RE.search(text or "")),
+            handler=self._handle_update_status,
+            priority=25,
         )
         if self.document_service is not None:
             router.register(
                 name="document_qa",
                 matcher=self._is_document_question_request,
                 handler=self._handle_document_question,
-                priority=16,
+                priority=26,
             )
             router.register(
                 name="document",
                 matcher=self._is_document_request,
                 handler=self._handle_document,
-                priority=17,
+                priority=27,
             )
+        router.register(
+            name="search_factual",
+            matcher=self._is_search_or_factual_request,
+            handler=self._handle_search,
+            priority=30,
+        )
         return router
 
     def _is_name_set_request(self, text: str) -> bool:
@@ -287,6 +384,65 @@ class JarvisRuntime:
             return True
 
         return False
+
+    def _is_location_declaration_only(self, text: str) -> bool:
+        lowered = (text or "").strip().lower()
+        if not lowered:
+            return False
+
+        declared = self._extract_declared_location(lowered)
+        if not declared:
+            return False
+
+        if any(
+            matcher.search(lowered)
+            for matcher in (
+                self.WEATHER_RE,
+                self.NEWS_RE,
+                self.SPEEDTEST_RE,
+                self.PUBLIC_IP_RE,
+                self.LOCATION_RE,
+                self.SEARCH_RE,
+                self.CONNECTIVITY_RE,
+                self.STATUS_RE,
+                self.TEMPORAL_RE,
+                self.UPDATE_RE,
+            )
+        ):
+            return False
+
+        return "?" not in lowered
+
+    def _is_search_or_factual_request(self, text: str) -> bool:
+        lowered = (text or "").strip().lower()
+        if not lowered:
+            return False
+
+        if any(
+            matcher.search(lowered)
+            for matcher in (
+                self.WEATHER_RE,
+                self.PUBLIC_IP_RE,
+                self.LOCATION_RE,
+                self.SPEEDTEST_RE,
+                self.CONNECTIVITY_RE,
+                self.STATUS_RE,
+                self.TEMPORAL_RE,
+                self.UPDATE_RE,
+            )
+        ):
+            return False
+
+        if self.document_service is not None and (
+            self._is_document_request(lowered) or self._is_document_question_request(lowered)
+        ):
+            return False
+
+        return bool(
+            self._is_search_request(lowered)
+            or self._is_factual_query(lowered)
+            or self._is_short_ipl_season_prompt(lowered)
+        )
 
     @staticmethod
     def _assistant_identity_fallback() -> str:
@@ -396,6 +552,7 @@ class JarvisRuntime:
                 self.PUBLIC_IP_RE,
                 self.LOCATION_RE,
                 self.WEATHER_RE,
+                self.CONNECTIVITY_RE,
                 self.NEWS_RE,
                 self.STATUS_RE,
                 self.TEMPORAL_RE,
@@ -663,6 +820,7 @@ class JarvisRuntime:
                 self.PUBLIC_IP_RE,
                 self.LOCATION_RE,
                 self.WEATHER_RE,
+                self.CONNECTIVITY_RE,
                 self.NEWS_RE,
                 self.STATUS_RE,
                 self.TEMPORAL_RE,
@@ -898,23 +1056,50 @@ class JarvisRuntime:
 
         return fallback
 
-    def _handle_greeting(self, _text: str) -> str:
-        user_text = (_text or "hello").strip() or "hello"
-        fallback = "Good to hear from you, Sir. What should we tackle first?"
-        return self._groq_quick_reply(
-            user_text=user_text,
-            reply_goal="Greet the user and invite the next task in an engaging way.",
-            fallback=fallback,
-        )
+    def _handle_greeting(self, text: str) -> str:
+        lowered = (text or "").strip().lower()
+        if "good afternoon" in lowered:
+            period = "afternoon"
+        elif "good evening" in lowered:
+            period = "evening"
+        elif "good night" in lowered:
+            period = "night"
+        elif "good morning" in lowered:
+            period = "morning"
+        else:
+            period = self._day_period_label()
+        return f"Good {period}, Sir. What should we tackle first?"
 
     def _handle_wellbeing(self, _text: str) -> str:
-        user_text = (_text or "how are you?").strip() or "how are you?"
-        fallback = "Doing great and locked in, Sir. What should we tackle next?"
-        return self._groq_quick_reply(
-            user_text=user_text,
-            reply_goal="Reply to how-are-you warmly, then pivot to helping with the next task.",
-            fallback=fallback,
+        period = self._day_period_label()
+        if period == "night":
+            return "Doing great tonight, Sir. What should we handle next?"
+        return f"Doing great this {period}, Sir. What should we handle next?"
+
+    def _handle_capabilities(self, _text: str) -> str:
+        return (
+            "I can help with weather and forecast checks, internet search and news, public IP and location diagnostics, "
+            "connectivity and speed tests, system and app control, and document analysis with follow-up Q&A. "
+            "Tell me the task directly and I will route it to the right tool."
         )
+
+    def _handle_help(self, _text: str) -> str:
+        return (
+            "Try commands like: weather in delhi, forecast for tomorrow, check internet connectivity, what is my IP, "
+            "where am I, run speed test, system status, what time is it, open chrome, close it, max volume, "
+            "analyze document, and compare these documents."
+        )
+
+    @staticmethod
+    def _day_period_label() -> str:
+        current_hour = datetime.datetime.now().hour
+        if 5 <= current_hour < 12:
+            return "morning"
+        if 12 <= current_hour < 17:
+            return "afternoon"
+        if 17 <= current_hour < 22:
+            return "evening"
+        return "night"
 
     def _handle_search_policy_feedback(self, _text: str) -> str:
         self.memory.set("prefer_web_for_facts", True)
@@ -1025,6 +1210,10 @@ class JarvisRuntime:
             return result.response
         return None
 
+    def _handle_connectivity(self, text: str) -> str:
+        self._remember_fact(source="connectivity", query=text, handler=lambda _q: self.network_service.describe_connectivity())
+        return self.network_service.describe_connectivity()
+
     def _handle_public_ip(self, text: str) -> str:
         self._remember_fact(source="public_ip", query=text, handler=lambda _q: self.network_service.describe_public_ip())
         return self.network_service.describe_public_ip()
@@ -1038,21 +1227,126 @@ class JarvisRuntime:
         return self.weather_service.get_weather_brief(text)
 
     def _handle_search(self, text: str) -> str:
-        result = self.agent_loop.run(text)
+        effective_query = self._build_effective_search_query(self._extract_search_topic(text))
+
+        result = self.agent_loop.run(effective_query)
         if result.handled and result.response:
+            self._last_search_query = effective_query
+            self.memory.set("last_search_query", effective_query)
+            self._remember_fact(source="search", query=effective_query, handler=lambda q: self._deterministic_search_response(q))
             return result.response
-        return self.personality.finalize(
-            "I could not complete that web search request right now.",
-            user_text=text,
+
+        return self._deterministic_search_response(effective_query, user_text=text)
+
+    def _deterministic_search_response(self, query: str, *, user_text: str | None = None) -> str:
+        payload = self.search_service.search_web_raw(query, max_results=5)
+        results = payload.get("results") if isinstance(payload, dict) else []
+        if not isinstance(results, list) or not results:
+            return self.personality.finalize(
+                "I could not complete that web search request right now.",
+                user_text=user_text or query,
+            )
+
+        self._last_search_query = query
+        self.memory.set("last_search_query", query)
+
+        answer = self._extract_ipl_winner_answer(query, results)
+        if not answer:
+            year = self._extract_ipl_year(query)
+            lowered_query = (query or "").lower()
+            if year and "ipl" in lowered_query and re.search(r"\b(who won|winner|champion|won)\b", lowered_query):
+                focused_query = f"IPL {year} winner"
+                focused_payload = self.search_service.search_web_raw(focused_query, max_results=5)
+                focused_results = focused_payload.get("results") if isinstance(focused_payload, dict) else []
+                if isinstance(focused_results, list) and focused_results:
+                    answer = self._extract_ipl_winner_answer(focused_query, focused_results)
+                    if answer:
+                        self._last_search_query = focused_query
+                        self.memory.set("last_search_query", focused_query)
+
+        if answer:
+            return self.personality.finalize(answer, user_text=user_text or query)
+
+        lines = [f"Top web results for '{query}':"]
+        for index, item in enumerate(results[:3], start=1):
+            if not isinstance(item, dict):
+                continue
+            title = str(item.get("title") or "").strip()
+            link = str(item.get("link") or "").strip()
+            if title and link:
+                lines.append(f"{index}. {title} — {link}")
+            elif title:
+                lines.append(f"{index}. {title}")
+
+        return self.personality.finalize("\n".join(lines), user_text=user_text or query)
+
+    def _extract_ipl_winner_answer(self, query: str, results: list[dict[str, object]]) -> str:
+        lowered_query = (query or "").lower()
+        if "ipl" not in lowered_query or not re.search(r"\b(who won|winner|champion|won)\b", lowered_query):
+            return ""
+
+        year = self._extract_ipl_year(lowered_query)
+        if not year:
+            return ""
+
+        winner_patterns = (
+            rf"\b([A-Z][A-Za-z0-9& .'-]{{2,60}}?)\s+(?:won|wins|clinched|lifted|secured)\s+(?:the\s+)?(?:IPL|Indian Premier League)\s*{year}\b",
+            rf"\b(?:IPL|Indian Premier League)\s*{year}\s*(?:winner|champion)\s*[:\-]?\s*([A-Z][A-Za-z0-9& .'-]{{2,60}})\b",
         )
+        team_aliases: tuple[tuple[str, tuple[str, ...]], ...] = (
+            ("Royal Challengers Bengaluru", ("royal challengers bengaluru", "royal challengers bangalore", "rcb")),
+            ("Chennai Super Kings", ("chennai super kings", "csk")),
+            ("Mumbai Indians", ("mumbai indians", "mi")),
+            ("Kolkata Knight Riders", ("kolkata knight riders", "kkr")),
+            ("Sunrisers Hyderabad", ("sunrisers hyderabad", "srh")),
+            ("Rajasthan Royals", ("rajasthan royals", "rr")),
+            ("Delhi Capitals", ("delhi capitals", "dc")),
+            ("Punjab Kings", ("punjab kings", "pbks", "kings xi punjab")),
+            ("Lucknow Super Giants", ("lucknow super giants", "lsg")),
+            ("Gujarat Titans", ("gujarat titans", "gt")),
+        )
+
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            probe = f"{item.get('title') or ''}. {item.get('snippet') or ''}".strip()
+            probe_lower = probe.lower()
+
+            if year in probe_lower and re.search(r"\b(won|wins|winner|champion|title|trophy|defeated|beat|clinched|lifted|secured)\b", probe_lower):
+                for team_name, aliases in team_aliases:
+                    for alias in aliases:
+                        alias_pattern = re.escape(alias)
+                        if re.search(
+                            rf"\b{alias_pattern}\b[^.\n]{{0,40}}\b(won|wins|winner|champion|title|trophy|defeated|beat|clinched|lifted|secured)\b",
+                            probe_lower,
+                        ):
+                            return f"Based on current web results, {team_name} won IPL {year} season."
+
+            for pattern in winner_patterns:
+                match = re.search(pattern, probe, flags=re.IGNORECASE)
+                if not match:
+                    continue
+                winner = re.sub(r"\s+", " ", str(match.group(1) or "")).strip(" .,-")
+                if winner:
+                    return f"Based on current web results, {winner} won IPL {year} season."
+
+        return ""
+
+    def _handle_location_declaration(self, text: str) -> str:
+        declared = self._extract_declared_location(text)
+        if not declared:
+            return "I caught your location update, but missed the exact place."
+
+        self._set_session_location(declared)
+        return f"Got it, Sir. I will use {declared} for local context."
 
     def _handle_system_status(self, text: str) -> str:
         self._remember_fact(source="system_status", query=text, handler=lambda _q: self.network_service.get_system_status_snapshot())
         return self.network_service.get_system_status_snapshot()
 
     def _handle_temporal(self, text: str) -> str:
-        self._remember_fact(source="temporal", query=text, handler=lambda _q: self.network_service.get_temporal_snapshot())
-        return self.network_service.get_temporal_snapshot()
+        self._remember_fact(source="temporal", query=text, handler=lambda q: self.network_service.get_temporal_snapshot(q))
+        return self.network_service.get_temporal_snapshot(text)
 
     def _is_document_request(self, text: str) -> bool:
         """Detect user requests to analyze a document file."""
@@ -1062,7 +1356,21 @@ class JarvisRuntime:
         # Don't intercept if document service is not available
         if self.document_service is None:
             return False
+
+        if self._is_document_picker_request(lowered):
+            return True
+
+        # Let normal explorer/file-manager requests route through app_control.
+        if self.FILE_MANAGER_RE.search(lowered):
+            return False
+
         return bool(self.DOCUMENT_RE.search(lowered))
+
+    def _is_document_picker_request(self, text: str) -> bool:
+        lowered = (text or "").strip().lower()
+        if not lowered:
+            return False
+        return bool(self.DOCUMENT_PICKER_RE.search(lowered))
 
     @staticmethod
     def _is_explicit_multi_file_compare_request(text: str) -> bool:
@@ -1682,23 +1990,8 @@ class JarvisRuntime:
                     pass
 
     def greet(self, *, stream_to_stdout: bool = True) -> str:
-        current_hour = datetime.datetime.now().hour
-        day_period = "day"
-        if current_hour < 12:
-            day_period = "morning"
-        elif current_hour < 18:
-            day_period = "afternoon"
-        else:
-            day_period = "evening"
-
-        greeting = self._groq_quick_reply(
-            user_text=f"startup greeting for {day_period}",
-            reply_goal=(
-                "Generate a startup greeting for the desktop assistant. "
-                "Make it crisp, polished, and welcoming."
-            ),
-            fallback="Ready when you are, Sir. What should we work on first?",
-        )
+        day_period = self._day_period_label()
+        greeting = f"Good {day_period}, Sir. Ready when you are. What should we work on first?"
         return self._respond_local(
             user_text="",
             response_text=greeting,
