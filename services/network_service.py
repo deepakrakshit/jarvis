@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import re
 import threading
 import time
 from dataclasses import dataclass
@@ -148,6 +149,26 @@ class NetworkService:
         )
         return self.personality.finalize(message)
 
+    def describe_connectivity(self) -> str:
+        started = time.perf_counter()
+        public_ip = self.get_public_ip()
+        latency_ms = round((time.perf_counter() - started) * 1000.0, 1)
+
+        if public_ip:
+            message = f"Internet connectivity is up. Public IP: {public_ip}. Probe latency {latency_ms:.1f} ms."
+            return self.personality.finalize(message)
+
+        probe_started = time.perf_counter()
+        probe_text = self.http.get_text("https://www.cloudflare.com/cdn-cgi/trace", timeout=4.0)
+        probe_latency_ms = round((time.perf_counter() - probe_started) * 1000.0, 1)
+        if probe_text is not None:
+            message = f"Internet connectivity appears up. External probes responded in about {probe_latency_ms:.1f} ms."
+            return self.personality.finalize(message)
+
+        return self.personality.finalize(
+            "I could not verify internet connectivity right now. The network may be down or external probes may be blocked."
+        )
+
     def get_system_status_snapshot(self) -> str:
         now = datetime.datetime.now().astimezone()
         cpu = "unavailable"
@@ -172,13 +193,27 @@ class NetworkService:
         )
         return self.personality.finalize(message)
 
-    def get_temporal_snapshot(self) -> str:
+    def get_temporal_snapshot(self, query: str = "") -> str:
         now = datetime.datetime.now().astimezone()
-        message = (
-            f"Local time is {now.strftime('%I:%M %p')}, "
-            f"and today is {now.strftime('%A, %B %d, %Y')} "
-            f"in {now.tzname() or 'local time'}."
-        )
+        lowered = (query or "").strip().lower()
+        is_day_query = bool(re.search(r"\b(what day|which day|day is it|weekday)\b", lowered))
+
+        if "month" in lowered:
+            message = f"Current month is {now.strftime('%B %Y')} in {now.tzname() or 'local time'}."
+        elif "year" in lowered:
+            message = f"Current year is {now.strftime('%Y')} in {now.tzname() or 'local time'}."
+        elif is_day_query:
+            message = f"Today is {now.strftime('%A')} in {now.tzname() or 'local time'}."
+        elif "date" in lowered:
+            message = f"Today's date is {now.strftime('%A, %B %d, %Y')} in {now.tzname() or 'local time'}."
+        elif "time" in lowered:
+            message = f"Local time is {now.strftime('%I:%M %p')} in {now.tzname() or 'local time'}."
+        else:
+            message = (
+                f"Local time is {now.strftime('%I:%M %p')}, "
+                f"and today is {now.strftime('%A, %B %d, %Y')} "
+                f"in {now.tzname() or 'local time'}."
+            )
         return self.personality.finalize(message)
 
     def get_update_status(self) -> str:

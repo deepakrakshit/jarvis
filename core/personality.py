@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as _dt
 import re
 
+from core.humor import HumorEngine
 from core.time_utils import get_time_based_greeting
 
 
@@ -44,6 +45,10 @@ _CASUAL_MARKERS = (
 
 class PersonalityEngine:
     """Central response style policy for local assistant responses."""
+
+    def __init__(self, *, humor_engine: HumorEngine | None = None, controlled_humor: bool = True) -> None:
+        self._humor = humor_engine or HumorEngine()
+        self._controlled_humor = bool(controlled_humor)
 
     def detect_user_tone(self, user_text: str) -> str:
         lowered = (user_text or "").lower()
@@ -97,8 +102,73 @@ class PersonalityEngine:
 
         return adapted
 
+    @staticmethod
+    def _humor_category(text: str) -> str:
+        lowered = str(text or "").lower()
+
+        if re.search(
+            r"\b(could not|couldn't|unable|failed|failure|error|unavailable|blocked|not found|cannot|can't|did not|didn't)\b",
+            lowered,
+        ):
+            return "error"
+
+        if "?" in str(text or ""):
+            return "question"
+
+        if re.search(r"\b(done|completed|complete|success|successfully|started|ready|set to|now open|has been)\b", lowered):
+            return "success"
+
+        return "neutral"
+
+    @staticmethod
+    def _humor_context(text: str, user_text: str = "") -> str:
+        probe = f"{user_text or ''} {text or ''}".lower()
+        if re.search(r"\b(good morning|good afternoon|good evening|good night|hello|hi|hey|yo)\b", probe):
+            return "greeting"
+        if re.search(r"\b(how are you|how are you feeling|hru|how ru|doing great)\b", probe):
+            return "wellbeing"
+        if re.search(r"\b(time|date|day|month|year|today)\b", probe) or "local time is" in probe:
+            return "time"
+        if "public ip" in probe or "external ip" in probe or re.search(r"\bmy ip\b", probe):
+            return "ip"
+        if "network location" in probe or "coordinates" in probe or re.search(r"\bwhere am i\b", probe):
+            return "location"
+        if "connectivity" in probe or "online" in probe:
+            return "connectivity"
+        if "speed test" in probe or "internet speed" in probe:
+            return "speedtest"
+        if "weather" in probe or "forecast" in probe or "temperature" in probe or "precipitation" in probe:
+            return "weather"
+        if "system status" in probe or "cpu" in probe or "ram" in probe or "uptime" in probe:
+            return "system"
+        if re.search(r"\b(help|commands|what can you do|capabilities)\b", probe):
+            return "help"
+        return "generic"
+
+    def _apply_controlled_humor(self, text: str, *, user_text: str = "") -> str:
+        base = str(text or "").strip()
+        if not base:
+            return ""
+
+        if not self._controlled_humor:
+            return base
+
+        if self._humor.has_known_reply_line_suffix(base):
+            return base
+
+        category = self._humor_category(base)
+        context = self._humor_context(base, user_text=user_text)
+        line = self._humor.reply_line(category=category, context=context)
+        if not line:
+            return base
+
+        separator = "\n\n" if "\n" in base else " "
+        return f"{base}{separator}{line}"
+
     def finalize(self, text: str, *, user_text: str = "") -> str:
-        return self.sanitize(self.adapt_tone(text, user_text))
+        adapted = self.adapt_tone(text, user_text)
+        cleaned = self.sanitize(adapted)
+        return self._apply_controlled_humor(cleaned, user_text=user_text)
 
     def greeting(self, *, name: str | None = None, now: _dt.datetime | None = None) -> str:
         greeting = get_time_based_greeting(now=now, name=name)

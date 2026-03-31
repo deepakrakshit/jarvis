@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 import re
 from collections import deque
+from typing import Literal
 
 
 class HumorEngine:
@@ -11,6 +12,8 @@ class HumorEngine:
     def __init__(self, *, seed: int | None = None, recent_window: int = 6) -> None:
         self._rng = random.Random(seed)
         self._recent_lines: deque[str] = deque(maxlen=max(2, recent_window))
+        self._recent_reply_lines: deque[str] = deque(maxlen=max(4, recent_window * 2))
+        self._reply_decks: dict[str, deque[str]] = {}
         self._templates: dict[str, list[str]] = {
             "storm": [
                 "Storm activity is active right now, so outdoor plans need backup options.",
@@ -62,6 +65,130 @@ class HumorEngine:
                 "Conditions are cooperative and should not disrupt typical routines.",
             ],
         }
+        self._reply_templates: dict[str, list[str]] = {
+            "success": [
+                "Clean result, tiny victory lap.",
+                "Task handled; drama stayed offline.",
+                "Another neat win for the mission log.",
+                "Smooth run, no cinematic chaos.",
+                "Done and tidy, exactly as intended.",
+                "That landed cleanly.",
+                "Good execution, low noise.",
+                "Mission step complete.",
+                "Solid output, no friction.",
+                "That went exactly on script.",
+                "We keep collecting clean wins.",
+            ],
+            "error": [
+                "No panic, we can reroute this.",
+                "That one slipped, but control is intact.",
+                "Not ideal, still recoverable.",
+                "Small bump, steady hands.",
+                "We can take another clean shot.",
+                "No drama, we adapt and continue.",
+                "This is fixable in one more pass.",
+                "Temporary miss, permanent progress.",
+                "We stay calm and iterate.",
+                "No crash, just a course correction.",
+            ],
+            "question": [
+                "Ready for the next round.",
+                "Queue the next challenge.",
+                "Warm engines for follow-up.",
+                "Your move, listening closely.",
+                "Round two can start anytime.",
+                "Next prompt can drop anytime.",
+                "I am prepped for the follow-up.",
+                "Send the next objective.",
+                "Standing by for your next call.",
+                "Happy to keep the momentum going.",
+            ],
+            "neutral": [
+                "Keeping it sharp and light.",
+                "Precision first, mischief second.",
+                "Calm, clear, and slightly amused.",
+                "Professional tone, playful edge.",
+                "Steady output with a small grin.",
+                "Clear signal, low noise.",
+                "Staying practical with a wink.",
+                "Measured output, light touch.",
+                "Neat, direct, and lightly playful.",
+                "Clean words, zero chaos.",
+            ],
+        }
+        self._context_templates: dict[str, list[str]] = {
+            "greeting": [
+                "Launch tone set.",
+                "Shift is live.",
+                "Command deck is open.",
+                "Systems are awake.",
+                "All channels are clear.",
+                "Ready for your first objective.",
+            ],
+            "wellbeing": [
+                "Core mood: steady and useful.",
+                "Energy is stable and mission-ready.",
+                "Running smooth and alert.",
+                "All good on this side.",
+                "Confidence high, noise low.",
+            ],
+            "time": [
+                "Clockwork confirmed.",
+                "Timeline synced.",
+                "Chronology check passed.",
+                "Timeboard is in order.",
+                "Temporal diagnostics look clean.",
+            ],
+            "ip": [
+                "Internet passport located.",
+                "Network badge is visible.",
+                "Address lock acquired.",
+                "External route looks healthy.",
+                "IP telemetry looks stable.",
+            ],
+            "location": [
+                "Geo fix is stable.",
+                "Location lock confirmed.",
+                "Position map looks clean.",
+                "Coordinates aligned.",
+                "Geo telemetry is consistent.",
+            ],
+            "connectivity": [
+                "Link state looks healthy.",
+                "Network pulse is steady.",
+                "Connectivity channel is responsive.",
+                "Online signal checks out.",
+                "Route quality is stable.",
+            ],
+            "system": [
+                "Diagnostics lane is calm.",
+                "System telemetry is readable.",
+                "Status board is clean.",
+                "Machine rhythm looks stable.",
+                "Ops panel looks healthy.",
+            ],
+            "weather": [
+                "Sky report delivered.",
+                "Forecast channel is active.",
+                "Atmosphere update complete.",
+                "Weather board refreshed.",
+                "Climate snapshot locked.",
+            ],
+            "speedtest": [
+                "Bandwidth lane checked.",
+                "Network sprint completed.",
+                "Throughput reading is in.",
+                "Speed telemetry captured.",
+                "Link performance logged.",
+            ],
+            "help": [
+                "Navigation mode enabled.",
+                "Guide rails are up.",
+                "Command map is ready.",
+                "Support panel is open.",
+                "You can call any lane now.",
+            ],
+        }
 
     @staticmethod
     def _is_any(token_set: set[str], *keywords: str) -> bool:
@@ -85,12 +212,79 @@ class HumorEngine:
             return "cold"
         return "mild"
 
-    def _pick_non_repeating(self, candidates: list[str]) -> str:
-        fresh = [line for line in candidates if line not in self._recent_lines]
+    def _pick_non_repeating(self, candidates: list[str], *, recent: deque[str] | None = None) -> str:
+        recent_lines = recent if recent is not None else self._recent_lines
+        fresh = [line for line in candidates if line not in recent_lines]
         pool = fresh if fresh else candidates
         choice = self._rng.choice(pool)
-        self._recent_lines.append(choice)
+        recent_lines.append(choice)
         return choice
+
+    def _pick_from_deck(self, key: str, candidates: list[str], *, recent: deque[str]) -> str:
+        if not candidates:
+            return ""
+
+        deck = self._reply_decks.get(key)
+        if not deck:
+            shuffled = list(candidates)
+            self._rng.shuffle(shuffled)
+            deck = deque(shuffled)
+            self._reply_decks[key] = deck
+
+        selected = ""
+        attempts = len(deck)
+        while attempts > 0:
+            candidate = deck.popleft()
+            if candidate not in recent:
+                selected = candidate
+                break
+            deck.append(candidate)
+            attempts -= 1
+
+        if not selected:
+            selected = deck.popleft() if deck else candidates[0]
+
+        if not deck:
+            reshuffled = list(candidates)
+            self._rng.shuffle(reshuffled)
+            deck.extend(reshuffled)
+
+        recent.append(selected)
+        self._reply_decks[key] = deck
+        return selected
+
+    @property
+    def reply_line_catalog(self) -> set[str]:
+        lines = {line for values in self._reply_templates.values() for line in values}
+        lines.update(line for values in self._context_templates.values() for line in values)
+        return lines
+
+    def has_known_reply_line_suffix(self, text: str) -> bool:
+        stripped = str(text or "").strip()
+        if not stripped:
+            return False
+        for line in self.reply_line_catalog:
+            if stripped.endswith(line):
+                return True
+        return False
+
+    def reply_line(
+        self,
+        *,
+        category: Literal["success", "error", "question", "neutral"] = "neutral",
+        context: str = "",
+    ) -> str:
+        normalized_context = re.sub(r"[^a-z0-9_]+", "", str(context or "").lower())
+        candidates: list[str] = []
+
+        if normalized_context and normalized_context in self._context_templates:
+            candidates.extend(self._context_templates[normalized_context])
+
+        candidates.extend(self._reply_templates.get(category, self._reply_templates["neutral"]))
+        unique_candidates = list(dict.fromkeys(candidates))
+
+        deck_key = f"{category}:{normalized_context or 'generic'}"
+        return self._pick_from_deck(deck_key, unique_candidates, recent=self._recent_reply_lines)
 
     def weather_line(
         self,
