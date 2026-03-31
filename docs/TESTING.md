@@ -28,6 +28,13 @@ Includes:
 * ultra-fast deterministic reasoning latency checks
 * PDF parser guardrail limits (table-page cap and render short-circuit)
 * text-rich fast lane verification (vision/OCR skip when safe)
+* app-control resolver/executor verification behavior
+* runtime disambiguation for file picker vs file explorer phrasing
+* planner/validator/registry contract checks
+* connectivity intent routing and deterministic connectivity output
+* weather daily forecast/rain-probability handling
+* system control max/min brightness and volume canonicalization
+* synthesizer fallback readability for app/system control outputs
 
 ---
 
@@ -37,6 +44,8 @@ Includes:
 
 * location override from user input
 * session location carry-over (`i am in ...` then `weather?`)
+* forecast prompt (`forecast for tomorrow`) uses daily weather path
+* rain prompt (`will it rain today`) uses precipitation probability
 * mismatch recovery behavior
 
 ---
@@ -84,6 +93,25 @@ Must route through internet evidence and synthesize cleanly.
 
 * TTS starts/stops cleanly across long responses
 * SKIP button interrupts active speech and restores listening/processing mode correctly
+
+---
+
+### 7. App Control + File Flow Disambiguation
+
+* `open file explorer` must route to app control (not document picker)
+* `open file manager` must route to app control (not document picker)
+* `open file picker` must route to document selection flow
+* `open document selector` must route to document selection flow
+* `open vscode` / `open anaconda` should verify process start without false `execution_failed`
+
+---
+
+### 8. Connectivity + System Control Normalization
+
+* `check internet connectivity` must not route to search-policy feedback
+* `max volume` / `min volume` must map to safe `set_volume` actions
+* `max brightness` / `min brightness` must map to safe `set_brightness` actions
+* app/system fallback responses must remain human-readable (no raw dict payload leakage)
 
 ---
 

@@ -52,7 +52,7 @@ class _FallbackCompareLLM:
         }
 
 
-class CompareFastModelPathTest(unittest.TestCase):
+class CompareModelRoutingTest(unittest.TestCase):
     @staticmethod
     def _records() -> list[dict]:
         return [

@@ -45,9 +45,11 @@ All AI-generated code must follow strict constraints:
 
 * ⚡ Deterministic commands must remain reliable and executable
 * 🌍 Real-time queries must use **verifiable external sources**
+* 🌐 Connectivity diagnostics must remain deterministic and tool-backed
 * 🚫 No fabricated or guessed outputs (weather, IP, system data)
 * 🧠 No false claims of memory persistence without actual storage
 * 🔁 Validation and retry mechanisms must be enforced
+* 🗣️ Fallback responses must remain human-readable (no raw tool payload leakage)
 * 📄 Document analysis must preserve system-controlled file selection and path validation
 * 🔐 API keys and secrets must never be embedded in generated code or docs
 

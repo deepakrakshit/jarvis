@@ -57,6 +57,26 @@ Display Summary / Follow-up Answers
 
 ---
 
+## 🖥️ App Control Flow
+
+```text
+App Control Intent
+  ↓
+Alias Mapping
+  ↓
+Start Menu Index (Get-StartApps)
+  ↓
+Fuzzy / Fallback Resolution
+  ↓
+Open or Close Execution
+  ↓
+OS Verification (process check)
+  ↓
+Structured Result for Synthesizer
+```
+
+---
+
 ## ⚙️ Execution Pipeline
 
 ### 1. Smart Routing
@@ -106,6 +126,7 @@ Handled in `core/runtime.py`
 ### 5. Tools (`services/`)
 
 * Weather
+* Connectivity diagnostics
 * Internet search (including news-style queries)
 * System status
 * Public IP
@@ -143,6 +164,7 @@ All tools return **raw structured data (no summarization)**
 * `core/runtime.py` → orchestration + routing
 * `agent/` → full AI agent system
 * `services/` → deterministic tool layer
+* `services/system/app_control.py` → OS-level app resolver/executor with verification
 * `services/document/` → document intelligence pipeline modules
 * `services/document/qa_engine.py` → retrieval-backed QA and compare logic
 * `services/document/pipeline_utils.py` → reusable fusion/payload utility functions
@@ -164,6 +186,9 @@ Jarvis enforces strict reliability:
 * 🧾 Identity enforcement on final assistant output
 * 📄 Safe document path validation before analysis
 * 🧠 Active-document context is bounded and normalized before reuse
+* 🖥️ App open/close operations are OS-verified after execution (never assumed)
+* 🌐 Connectivity checks use deterministic probes (never policy-feedback fallbacks)
+* 🌧️ Forecast/rain prompts route to daily weather data, not current-only snapshots
 
 ---
 
@@ -178,6 +203,19 @@ Document throughput is tunable without changing code:
 * Fast-path default reasoning: `DOCUMENT_REASONING_DEFAULT_FAST`
 * Ultra-fast deterministic lane: `DOCUMENT_ULTRA_FAST_*`
 * Text-rich skip-vision lane: `DOCUMENT_SKIP_VISION_FOR_TEXT_RICH`, `DOCUMENT_TEXT_RICH_MIN_CHARS`
+
+---
+
+## 🧭 Tool Collision Prevention
+
+To avoid planner collisions across similarly capable tools:
+
+* factual and news queries default to Serper-backed search tools
+* app lifecycle commands default to `app_control`
+* connectivity phrases route to deterministic connectivity handler
+* max/min volume and brightness phrases normalize to safe set actions
+* document picker flow is reserved for explicit picker/selector phrasing
+* synthesizer never upgrades tool errors into success claims
 
 ---
 

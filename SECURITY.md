@@ -64,6 +64,7 @@ Pay special attention to:
 * Do not trust external APIs blindly
 * Avoid executing unsafe system commands
 * Ensure proper error handling
+* Keep fallback messaging human-readable to avoid exposing internal tool payloads
 * Keep file-picking and path validation in system code, never model-controlled logic
 * Restrict document inputs to supported file types and sane size limits
 
@@ -78,6 +79,11 @@ Current hardening expectations:
 * Unsupported or oversized files are rejected
 * Fail-open behavior should return safe errors, not partial unsafe execution
 * Document cache stores derived intelligence locally; protect host access and clear cache on sensitive systems
+
+Operational hardening expectations:
+
+* Connectivity checks should remain deterministic and probe-backed
+* Forecast/rain weather responses should use daily weather payloads where available
 
 ---
 

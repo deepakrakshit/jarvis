@@ -32,7 +32,7 @@ class _FastLlmStub:
         }
 
 
-class PipelineVisionSupportBudgetStressTest(unittest.TestCase):
+class PipelineVisionLimitsStressTest(unittest.TestCase):
     def test_text_primary_caps_vision_support_inputs(self) -> None:
         config = AppConfig.from_env(".env")
         pipeline = DocumentPipeline(_FastLlmStub(), config)

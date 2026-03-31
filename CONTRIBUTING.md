@@ -90,6 +90,9 @@ Checklist:
 * [ ] Code runs without errors
 * [ ] No breaking changes to existing features
 * [ ] Tested key flows (weather, search/news, IP, system)
+* [ ] Tested connectivity intent (`check internet connectivity`) for deterministic routing
+* [ ] Tested forecast/rain prompts (`forecast for tomorrow`, `will it rain today`) when weather logic changes
+* [ ] Tested max/min volume and brightness phrases when system-control validation changes
 * [ ] Tested at least one document flow (PDF/DOCX/image) if touching `services/document` or runtime routing
 * [ ] Ran stress suite (`python -m unittest discover -s tests/stress -p "test_*.py" -v`) for document-performance-sensitive changes
 * [ ] No unnecessary tool calls

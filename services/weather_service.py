@@ -48,7 +48,6 @@ _WEATHER_CODE_MAP: dict[int, str] = {
     99: "thunderstorm with heavy hail",
 }
 
-
 class WeatherService:
     """Weather module backed by Open-Meteo APIs."""
 
@@ -89,6 +88,10 @@ class WeatherService:
     def _normalize_location_text(text: str) -> str:
         collapsed = re.sub(r"\s+", " ", (text or "").strip())
         return collapsed.strip(" .,!?;:")
+
+    @classmethod
+    def _canonicalize_location_candidate(cls, text: str) -> str:
+        return cls._normalize_location_text(text)
 
     @staticmethod
     def _is_local_request(query: str) -> bool:
@@ -193,6 +196,32 @@ class WeatherService:
             return current
         return None
 
+    def _fetch_daily_weather(
+        self,
+        *,
+        latitude: float,
+        longitude: float,
+        timezone: str,
+        forecast_days: int = 3,
+    ) -> dict[str, Any] | None:
+        payload = self.http.get_json(
+            "https://api.open-meteo.com/v1/forecast",
+            params={
+                "latitude": latitude,
+                "longitude": longitude,
+                "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
+                "forecast_days": max(2, int(forecast_days)),
+                "timezone": timezone or "auto",
+            },
+        )
+        if not payload:
+            return None
+
+        daily = payload.get("daily")
+        if isinstance(daily, dict):
+            return daily
+        return None
+
     def get_weather_data(
         self,
         *,
@@ -208,6 +237,10 @@ class WeatherService:
         explicit = self._normalize_location_text(explicit_location)
         parsed_query_city = self._normalize_location_text(self._extract_city(query_text) or "")
         session_loc = self._normalize_location_text(session_location)
+
+        explicit = self._canonicalize_location_candidate(explicit)
+        parsed_query_city = self._canonicalize_location_candidate(parsed_query_city)
+        session_loc = self._canonicalize_location_candidate(session_loc)
 
         location: LocationInfo | None = None
         resolution_source = ""
@@ -296,6 +329,9 @@ class WeatherService:
             "tool_location": self._normalize_location_text(location.city or location.label),
             "tool_location_label": location.label,
             "resolution_source": resolution_source,
+            "latitude": float(location.latitude),
+            "longitude": float(location.longitude),
+            "timezone": str(location.timezone or "auto"),
             "temperature_c": round(temp_c, 1),
             "feels_like_c": round(feels_c, 1),
             "humidity_percent": round(humidity, 1),
@@ -317,13 +353,70 @@ class WeatherService:
                 user_text=user_text,
             )
 
+        lowered_query = (user_text or "").strip().lower()
+        label = str(payload.get("tool_location_label") or payload.get("tool_location") or "your area")
+
+        # Route forecast/rain-intent queries to daily data so "tomorrow" does not
+        # incorrectly return only current conditions.
+        wants_tomorrow = "tomorrow" in lowered_query
+        wants_forecast = "forecast" in lowered_query
+        wants_rain_probability = "rain" in lowered_query and any(token in lowered_query for token in ("today", "tomorrow", "will it"))
+
+        if wants_tomorrow or wants_forecast or wants_rain_probability:
+            try:
+                latitude = float(payload.get("latitude"))
+                longitude = float(payload.get("longitude"))
+                timezone = str(payload.get("timezone") or "auto")
+            except Exception:
+                latitude = 0.0
+                longitude = 0.0
+                timezone = "auto"
+
+            if latitude or longitude:
+                daily = self._fetch_daily_weather(
+                    latitude=latitude,
+                    longitude=longitude,
+                    timezone=timezone,
+                    forecast_days=3,
+                )
+                if daily:
+                    try:
+                        code_series = list(daily.get("weather_code") or [])
+                        max_series = list(daily.get("temperature_2m_max") or [])
+                        min_series = list(daily.get("temperature_2m_min") or [])
+                        rain_series = list(daily.get("precipitation_probability_max") or [])
+                        index = 1 if wants_tomorrow else 0
+                        code = int(code_series[index])
+                        max_temp = float(max_series[index])
+                        min_temp = float(min_series[index])
+                        rain_prob = float(rain_series[index])
+                    except Exception:
+                        code = 0
+                        max_temp = 0.0
+                        min_temp = 0.0
+                        rain_prob = 0.0
+
+                    if wants_rain_probability:
+                        day_label = "tomorrow" if wants_tomorrow else "today"
+                        return self.personality.finalize(
+                            f"There is a {rain_prob:.0f}% chance of precipitation in {label} {day_label}.",
+                            user_text=user_text,
+                        )
+
+                    day_label = "tomorrow" if wants_tomorrow else "today"
+                    condition = self._describe(code)
+                    forecast_message = (
+                        f"Forecast for {label} {day_label}: {min_temp:.1f}C to {max_temp:.1f}C, "
+                        f"{condition}, precipitation chance {rain_prob:.0f}%."
+                    )
+                    return self.personality.finalize(forecast_message, user_text=user_text)
+
         temp_c = float(payload.get("temperature_c") or 0.0)
         feels_c = float(payload.get("feels_like_c") or 0.0)
         humidity = float(payload.get("humidity_percent") or 0.0)
         wind_kmh = float(payload.get("wind_kmh") or 0.0)
         condition = str(payload.get("condition") or "variable conditions")
         weather_code = int(payload.get("weather_code") or 0)
-        label = str(payload.get("tool_location_label") or payload.get("tool_location") or "your area")
 
         advisory = self.humor.weather_line(
             temp_c=temp_c,

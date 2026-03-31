@@ -47,10 +47,12 @@ Rules:
 4. Keep operational commands deterministic:
 
    * weather
+   * connectivity diagnostics
    * public IP / network location
    * system status
    * speed test
    * temporal snapshot
+   * max/min brightness and volume normalization
 5. Keep document requests in the document service branch with file validation
 6. Avoid overly broad matching:
 
@@ -131,7 +133,9 @@ Before merging any change:
 
 * Factual query (e.g., office holder)
 * Real-time query (weather/news via internet search)
+* Connectivity query (`check internet connectivity`)
 * Speed test (start → result flow)
+* Forecast/rain weather query (`forecast for tomorrow`, `will it rain today`)
 * Internet search + follow-up query
 * Context correction flow
 * Document analysis (PDF or DOCX) with file select + summary output

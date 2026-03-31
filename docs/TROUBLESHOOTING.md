@@ -18,6 +18,20 @@
 
 ---
 
+## 🌧️ Forecast/Rain Query Returns Current Weather
+
+**Common causes:**
+
+* using a generic weather prompt instead of forecast/rain phrasing
+* weather provider daily endpoint temporarily unavailable
+
+**Fix:**
+
+* use explicit prompts like `forecast for tomorrow` or `will it rain today`
+* retry after a short delay if provider responses are incomplete
+
+---
+
 ## 🌐 Search/News Not Working
 
 **Common causes:**
@@ -45,6 +59,20 @@
 * install dependencies from `requirements.txt`
 * use supported file types (PDF, DOCX, DOC, PNG/JPG/TIFF/BMP/WEBP)
 * retry with a smaller file if size limits are hit
+
+---
+
+## 📁 File Explorer Opens Document Picker
+
+**Expected behavior:**
+
+* `open file picker` or `open document selector` opens document selection
+* `open file explorer` or `open file manager` opens normal file manager
+
+**Fix:**
+
+* use explicit picker wording only when you want document processing
+* use explorer/manager wording for OS file browsing
 
 ---
 
@@ -102,6 +130,63 @@
 
 * inspect planner output and validator result
 * confirm tool registration in `agent/tool_registry.py`
+
+---
+
+## 🌐 Connectivity Check Gives Wrong Response Type
+
+**Common causes:**
+
+* stale build before connectivity routing fix
+* broad matcher regressions in runtime routing
+
+**Fix:**
+
+* update to the latest build
+* verify `check internet connectivity` is routed through deterministic connectivity handler
+
+---
+
+## 🔊 Max/Min Volume or Brightness Rejected
+
+**Common causes:**
+
+* outdated validator rules without max/min canonicalization
+
+**Fix:**
+
+* update to latest runtime where `max/min` maps to safe set actions
+* fallback to explicit forms: `set volume to 100`, `set brightness to 0`
+
+---
+
+## 🧩 App Control Returns Ambiguous
+
+**Common causes:**
+
+* app name is too generic (`open office`, `open visual`)
+* multiple Start Menu apps have close scores
+
+**Fix:**
+
+* retry with exact app name (`open google chrome`, `open visual studio code`)
+* if needed, use alias-friendly names (`open browser`, `launch coding`)
+
+---
+
+## ✅ App Open/Close Not Verified
+
+**Common causes:**
+
+* app launches with non-obvious process name
+* process exits immediately after launch
+* OS blocked launch/termination operation
+
+**Fix:**
+
+* retry with explicit app name
+* run Jarvis with sufficient OS permissions
+* ensure the target app is installed and runnable manually
 
 ---
 

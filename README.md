@@ -35,6 +35,7 @@ It is designed around reliability-first behavior: deterministic tools where requ
 * 📄 **Hybrid document pipeline** (text parsing + OCR + vision + reasoning)
 * 🧩 **Retrieval-first document Q&A** with active-document follow-up context
 * 🔍 **Multi-document comparison** with evidence-backed citations
+* 🖥️ **Deterministic app control** (open/close with OS verification)
 * 🔁 **Validation and retry controls** for external integrations
 * 🚫 **Identity and hallucination guardrails** for assistant responses
 * 💾 **Session-aware memory** (name, location, search context)
@@ -83,8 +84,10 @@ Follow-up Q&A / Multi-document Compare
 ### 🌐 Real-Time Tooling
 
 * 🌦️ Weather (location-aware, session-supported)
+* 🌧️ Daily forecast + rain probability for today/tomorrow queries
 * 🔍 Internet search (web + news result surfaces via Serper)
 * 🌍 Public IP + IP-based location
+* 🌐 Internet connectivity diagnostics
 * ⚙️ System status snapshots
 * 📶 Speedtest workflow with follow-up interpretation
 * 🕒 Temporal snapshots (time/date)
@@ -116,16 +119,30 @@ weather in delhi
 latest ai news
 who is the prime minister of india
 what is my ip
+check internet connectivity
 run speed test
-i am in greater noida
+i am in pune
 weather?
+will it rain today
+forecast for tomorrow
+max volume
+min brightness
 analyze document
 summarize this pdf
 compare these documents
+open file picker
+open document selector
+open file explorer
+open file manager
 what is the pricing in this document
 list risks from the file I uploaded
 how r u
 ```
+
+Picker semantics:
+
+* `open file picker` and `open document selector` trigger document selection for analysis.
+* `open file explorer` and `open file manager` trigger normal OS file manager via app control.
 
 ---
 

@@ -9,8 +9,10 @@
 ```text
 weather in delhi
 weather in mumbai
-i am in greater noida
+i am in pune
 weather?
+will it rain today
+forecast for tomorrow
 ```
 
 ---
@@ -42,6 +44,8 @@ News prompts are routed through internet search evidence.
 ```text
 what is my ip
 network location
+check internet connectivity
+am i online
 ```
 
 ---
@@ -53,6 +57,10 @@ system status
 run speed test
 what time is it
 what is today's date
+max volume
+min volume
+max brightness
+min brightness
 ```
 
 ---
@@ -80,10 +88,27 @@ compare these two files for pricing and risks
 what is the pricing in this document
 list key entities from this file
 which plan has the highest cost
+open file picker
+open document selector
 ```
 
 When triggered, Jarvis opens a system file selector, validates the path, then runs the document pipeline.
 After successful analysis, follow-up document questions are answered from active document context.
+
+---
+
+## 🖥️ App Control
+
+```text
+open chrome
+open file explorer
+open file manager
+launch vscode
+close spotify
+close it
+```
+
+File explorer/manager requests route to app control and never trigger document picker flow.
 
 ---
 
