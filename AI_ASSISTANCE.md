@@ -1,111 +1,142 @@
-# 🤖 AI Assistance Policy
+<div align="center">
 
-![AI](https://img.shields.io/badge/AI-Assisted%20Development-purple)
-![Policy](https://img.shields.io/badge/Policy-Strict-blue)
-![Validation](https://img.shields.io/badge/Validation-Required-success)
-![Status](https://img.shields.io/badge/Control-Human--in--loop-important)
+[![Header](https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=2,3,30&height=160&section=header&text=AI%20Assistance%20Policy&fontSize=36&fontColor=ffffff&animation=twinkling&fontAlignY=50)](.)
+
+[![AI](https://img.shields.io/badge/AI-Assisted%20Development-7C3AED?style=for-the-badge&logo=openai&logoColor=white)](.)
+[![Control](https://img.shields.io/badge/Control-Human--in--Loop-00C853?style=for-the-badge)](.)
+[![Validation](https://img.shields.io/badge/Validation-Mandatory-F55036?style=for-the-badge)](.)
+[![Trust](https://img.shields.io/badge/AI%20Output-Untrusted%20Proposals-F7C948?style=for-the-badge)](.)
+
+</div>
 
 ---
 
 ## 🧠 Philosophy
 
-This project uses AI as a **development accelerator — not a decision-maker**.
+JARVIS uses AI as a **development accelerator — not a decision-maker**.
 
-AI is leveraged to increase speed and efficiency, while **all critical thinking, validation, and responsibility remain human-controlled**.
-
----
-
-## ⚙️ Where AI Is Used
-
-AI assistance may be used for:
-
-* Code drafting and structured refactoring
-* Boilerplate generation and scaffolding
-* Prompt and pipeline iteration for document intelligence modules
-* Documentation writing and formatting
-* Repetitive or mechanical implementation tasks
-
----
-
-## 👨‍💻 Human Ownership (Non-Negotiable)
-
-All critical engineering decisions are made by humans, including:
-
-* System design and architecture
-* Debugging and root-cause analysis
-* Validation of outputs and correctness
-* Security, privacy, and reliability decisions
-* Production readiness and release approval
-
----
-
-## 🛡️ Engineering Guardrails
-
-All AI-generated code must follow strict constraints:
-
-* ⚡ Deterministic commands must remain reliable and executable
-* 🌍 Real-time queries must use **verifiable external sources**
-* 🌐 Connectivity diagnostics must remain deterministic and tool-backed
-* 🚫 No fabricated or guessed outputs (weather, IP, system data)
-* 🧠 No false claims of memory persistence without actual storage
-* 🔁 Validation and retry mechanisms must be enforced
-* 🗣️ Fallback responses must remain human-readable (no raw tool payload leakage)
-* 📄 Document analysis must preserve system-controlled file selection and path validation
-* 🔐 API keys and secrets must never be embedded in generated code or docs
-
----
-
-## 🔍 Review & Validation Process
-
-All AI-generated contributions are treated as:
-
-> ⚠️ **Untrusted proposals — never final truth**
-
-Before acceptance:
-
-* Outputs must be tested against expected behavior
-* Tool responses must be validated (accuracy + relevance)
-* Edge cases and failure scenarios must be evaluated
-* Routing and execution paths must be verified
-* For document pipeline changes, parser/OCR/vision fallback behavior must be validated
-* For document performance changes, stress tests must be executed and reviewed
-
-No AI-generated code is merged without **explicit validation**.
-
----
-
-## 🚨 Production Safety Policy
-
-AI has **zero autonomous control** over the system.
-
-It cannot:
-
-* Modify runtime behavior independently
-* Make deployment decisions
-* Execute actions without validation
-* Override safety or validation layers
-* Trigger file-picking UX or bypass document path checks
-
----
-
-## 🧭 Guiding Principle
+AI tooling increases speed and reduces friction on mechanical tasks. It does not replace engineering judgment, system design thinking, or responsibility for correctness. The human engineer is accountable for every line of code that ships — regardless of whether an AI drafted it.
 
 > **AI suggests. Humans decide. Systems verify.**
 
 ---
 
-## 📌 Why This Matters
+## ⚙️ Where AI Is Used
 
-This policy ensures that:
+AI assistance is appropriate for these categories of work:
 
-* The system remains **reliable and deterministic**
-* Real-time data is **accurate and verifiable**
-* AI is used responsibly in engineering workflows
-* The project maintains **production-grade integrity**
+| Category | Examples |
+|---|---|
+| **Code drafting** | Scaffolding new modules, boilerplate, repetitive implementations |
+| **Structured refactoring** | Renaming, interface changes, pattern consistency |
+| **Prompt engineering** | Iterating on planner system prompts, synthesizer instructions |
+| **Document intelligence** | Pipeline tuning, reasoning payload optimization |
+| **Documentation** | Writing, formatting, example generation |
+| **Test scaffolding** | Generating initial test structures for known behaviors |
 
 ---
 
-## 👤 Maintained By
+## 👨‍💻 Human Ownership — Non-Negotiable
 
-**Deepak Rakshit**
-Building reliable AI systems with human-first control 🚀
+The following decisions are always made by a human engineer:
+
+| Decision Area | Why It Must Be Human |
+|---|---|
+| **System design and architecture** | Architectural decisions have cascading effects AI cannot fully model |
+| **Routing logic changes** | Incorrect routing breaks the reliability contract for all users |
+| **Debugging and root-cause analysis** | AI-generated diagnoses are hypotheses — humans verify with evidence |
+| **Validation of AI output** | All generated code is treated as a proposal until tested |
+| **Security and privacy decisions** | Risk tolerance is a human judgment, not an LLM inference |
+| **Production readiness** | Shipping requires confidence that no automated tool can provide |
+| **Release approval** | Every release tag is explicitly approved by the maintainer |
+
+---
+
+## 🛡️ Engineering Guardrails
+
+All AI-generated code must satisfy these requirements before acceptance:
+
+| Guardrail | Requirement |
+|---|---|
+| **Determinism** | Deterministic tool functions must remain free of hidden LLM calls |
+| **Live data integrity** | Real-time queries must use verifiable external sources — never LLM training data |
+| **Connectivity diagnostics** | Must remain deterministic and probe-backed — not inferred |
+| **No fabrication** | Weather, IP, system data must come from live APIs only |
+| **Memory honesty** | No false claims of memory persistence without actual storage writes |
+| **Validation and retry** | All tool outputs must be validated; retry logic must be explicit |
+| **Human-readable fallbacks** | No raw tool payload may leak into a user-facing response |
+| **Document path safety** | File selection must remain system-controlled; paths must be validated |
+| **Secret hygiene** | API keys must never appear in generated code, comments, or logs |
+
+---
+
+## 🔍 Review and Validation Process
+
+Every AI-generated contribution is treated as:
+
+> ⚠️ **An untrusted proposal — never as final truth**
+
+The review process for AI-assisted code:
+
+```
+AI generates code
+       ↓
+Human reads it critically
+       ↓
+Does it follow module boundaries?
+       ↓
+Does it introduce hidden LLM calls?
+       ↓
+Is routing precedence intact?
+       ↓
+Does it pass the stress test suite?
+       ↓
+Are edge cases and failure modes handled?
+       ↓
+Is fallback behavior human-readable?
+       ↓
+ACCEPTED or REJECTED
+```
+
+**No AI-generated code is merged without explicit validation by a human engineer.**
+
+For document pipeline changes, parser/OCR/vision fallback behavior must be validated under stress conditions. For performance changes, the stress suite must be run and results reviewed before merging.
+
+---
+
+## 🚨 Production Safety Boundaries
+
+AI has **zero autonomous control** over the JARVIS system. It cannot:
+
+| Capability | Status |
+|---|---|
+| Modify runtime behavior independently | ❌ Prohibited |
+| Make deployment or release decisions | ❌ Prohibited |
+| Execute actions without human validation | ❌ Prohibited |
+| Override safety or validation layers | ❌ Prohibited |
+| Trigger file-picker UI or bypass document path checks | ❌ Prohibited |
+| Decide what constitutes a production-ready change | ❌ Prohibited |
+
+---
+
+## 📌 Why This Policy Exists
+
+JARVIS is a system that users trust to give them accurate, real-time information and to execute OS-level actions correctly. That trust is only possible if every output is backed by validated, deterministic engineering — not probabilistic generation.
+
+This policy ensures:
+
+- The system remains **reliable and predictable** for every user
+- Real-time data is **accurate and verifiable**, not hallucinated
+- AI tooling is used **responsibly** — as an accelerator, not a replacement for thinking
+- The project maintains **production-grade integrity** regardless of how it was built
+
+---
+
+<div align="center">
+
+**Maintained by Deepak Rakshit**  
+*Building reliable AI systems with human-first control* 🚀
+
+[![Footer](https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=2,3,30&height=100&section=footer)](.)
+
+</div>
