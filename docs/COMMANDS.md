@@ -1,154 +1,282 @@
-# 📜 Commands Reference
+<div align="center">
 
-![Commands](https://img.shields.io/badge/Commands-Supported-blue)
+[![Header](https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=2,3,30&height=160&section=header&text=Commands%20Reference&fontSize=38&fontColor=ffffff&animation=twinkling&fontAlignY=50)](.)
+
+[![Commands](https://img.shields.io/badge/Commands-Full%20Reference-0066FF?style=for-the-badge)](.)
+[![Updated](https://img.shields.io/badge/Status-Up%20to%20Date-00C853?style=for-the-badge)](.)
+
+</div>
+
+> **Tip:** JARVIS understands natural language. These examples show the phrase patterns that trigger each capability — you do not need to use exact wording.
 
 ---
 
 ## 🌦️ Weather
 
-```text
-weather in delhi
-weather in mumbai
-i am in pune
-weather?
-will it rain today
-forecast for tomorrow
-```
+| Command | What It Does |
+|---|---|
+| `weather in delhi` | Current conditions for Delhi |
+| `weather in mumbai` | Current conditions for Mumbai |
+| `weather?` | Current conditions for your last used city |
+| `what's the temperature in bangalore` | Temperature for a specific city |
+| `forecast for tomorrow` | Tomorrow's min/max temp + condition + rain chance |
+| `will it rain today` | Today's precipitation probability |
+| `will it rain tomorrow` | Tomorrow's precipitation probability |
+
+**Session location:** After saying `i am in pune`, bare `weather?` queries will use Pune automatically.
 
 ---
 
-## 🌐 Internet Search
+## 📍 Location & Session Context
 
-```text
-search on internet latest ai news
-who is the PM of India
-who won ipl 2025 season
-```
-
----
-
-## 📰 News-Style Queries
-
-```text
-latest ai news
-technology news
-latest india headlines
-```
-
-News prompts are routed through internet search evidence.
+| Command | What It Does |
+|---|---|
+| `i am in greater noida` | Sets session location for weather queries |
+| `i'm in delhi` | Same — short form |
+| `my location is bangalore` | Same — explicit form |
+| `currently in mumbai` | Same — alternate phrasing |
 
 ---
 
-## 🌍 Network
+## 🌐 Internet Search & News
 
-```text
-what is my ip
-network location
-check internet connectivity
-am i online
-```
+| Command | What It Does |
+|---|---|
+| `latest ai news` | Web search for recent AI news |
+| `technology news` | Recent tech headlines |
+| `search for python frameworks` | Web search for a specific topic |
+| `who is the PM of India` | Factual query via web evidence |
+| `who won ipl 2025 season` | Sports result via web search |
+| `what happened with the fed rate` | Current events query |
+| `search on internet latest india news` | Explicit search command |
 
----
-
-## ⚙️ System
-
-```text
-system status
-run speed test
-what time is it
-what is today's date
-max volume
-min volume
-max brightness
-min brightness
-```
+> All factual and current-events queries use **live web evidence** — not LLM training data.
 
 ---
 
-## 🧠 Context / Memory
+## 🌍 Network Diagnostics
 
-```text
-i am in greater noida
-what is my location
-my name is deepak
-what is my name
-```
+| Command | What It Does |
+|---|---|
+| `what is my ip` | Current public IP address |
+| `public ip` | Same — short form |
+| `external ip address` | Same — alternate form |
+| `where am i` | Approximate location from IP geolocation |
+| `network location` | IP-derived city, region, country, coordinates |
+| `check internet connectivity` | Deterministic probe — confirms online/offline |
+| `am i online` | Same — alternate form |
+| `check network connectivity` | Same — alternate form |
 
 ---
 
-## 📄 Document Intelligence
+## ⚡ Speed Test
 
-```text
-analyze document
-summarize this pdf
-read this docx file
-extract key points from this file
-compare these documents
-compare these two files for pricing and risks
-what is the pricing in this document
-list key entities from this file
-which plan has the highest cost
-open file picker
-open document selector
-```
+| Command | What It Does |
+|---|---|
+| `run speed test` | Runs synchronous speed test and reports results |
+| `test internet speed` | Same |
+| `internet speed` | Same |
+| `speedtest` | Same |
+| `show speed results` | Returns last measured results (no re-test) |
+| `are the results out` | Same — checks for cached result |
+| `is my internet speed good` | Assessment vs. regional average |
+| `below average speed?` | Same |
+| `run speed test in background` | Starts async test; ask for results later |
 
-When triggered, Jarvis opens a system file selector, validates the path, then runs the document pipeline.
-After successful analysis, follow-up document questions are answered from active document context.
+---
+
+## ⚙️ System Status & Time
+
+| Command | What It Does |
+|---|---|
+| `system status` | CPU % · RAM % · Uptime · Time snapshot |
+| `device status` | Same |
+| `pc status` | Same |
+| `what time is it` | Current local time |
+| `local time` | Same |
+| `what's today's date` | Full date |
+| `what day is it` | Day of week |
+| `what month is this` | Current month |
+| `what year is it` | Current year |
+| `system update status` | JARVIS version + update tracking info |
+
+---
+
+## 🔊 Volume Control
+
+| Command | What It Does |
+|---|---|
+| `max volume` | Sets volume to 100% |
+| `min volume` | Sets volume to 0% |
+| `set volume to 60` | Sets volume to a specific level (0–100) |
+| `increase volume` | Increases by 10% |
+| `decrease volume` | Decreases by 10% |
+| `raise volume by 20` | Increases by a specific step |
+| `lower volume by 15` | Decreases by a specific step |
+| `mute` | Mutes audio |
+| `unmute` | Unmutes audio |
+
+---
+
+## ☀️ Brightness Control
+
+| Command | What It Does |
+|---|---|
+| `max brightness` | Sets brightness to 100% |
+| `min brightness` | Sets brightness to 0% |
+| `set brightness to 75` | Sets brightness to a specific level (0–100) |
+| `increase brightness` | Increases by 10% |
+| `decrease brightness` | Decreases by 10% |
+| `dim the screen` | Decreases brightness |
+| `brighten the screen` | Increases brightness |
+
+---
+
+## 🪟 Window & Desktop Control
+
+| Command | What It Does |
+|---|---|
+| `switch window` | Alt-Tab to next window |
+| `minimize window` | Minimizes the active window |
+| `restore window` | Restores the active window |
+| `show desktop` | Win+D — minimizes all windows |
+| `minimize all windows` | Minimizes all windows |
+| `restore all windows` | Restores all minimized windows |
+| `focus chrome window` | Brings Chrome to the foreground |
+| `close notes window` | Closes the matching window |
 
 ---
 
 ## 🖥️ App Control
 
-```text
-open chrome
-open file explorer
-open file manager
-launch vscode
-close spotify
-close it
-```
+| Command | What It Does |
+|---|---|
+| `open chrome` | Launches Google Chrome |
+| `launch vscode` | Launches Visual Studio Code |
+| `open spotify` | Launches Spotify |
+| `start calculator` | Launches Calculator |
+| `open file explorer` | Opens Windows File Explorer (NOT document picker) |
+| `open file manager` | Same — alternate phrasing |
+| `close spotify` | Closes Spotify |
+| `close it` | Closes the last app you opened |
+| `terminate chrome` | Force-closes Chrome |
 
-File explorer/manager requests route to app control and never trigger document picker flow.
+> **Disambiguation:** `open file explorer` / `open file manager` → OS file browser. `open file picker` / `open document selector` → document analysis workflow.
+
+---
+
+## 📄 Document Intelligence
+
+### Triggering Analysis
+
+| Command | What It Does |
+|---|---|
+| `analyze document` | Opens file picker → full pipeline analysis |
+| `summarize this pdf` | Same |
+| `read this docx file` | Same |
+| `open file picker` | Same — explicit picker phrasing |
+| `open document selector` | Same |
+| `select a document` | Same |
+
+**Supported formats:** PDF · DOCX · DOC (with guidance) · PNG · JPG · JPEG · TIFF · BMP · WEBP
+
+### Follow-up Q&A (after analysis)
+
+| Command | What It Does |
+|---|---|
+| `what is the pricing in this document` | Extracts pricing from active document |
+| `list key risks` | Lists identified risks |
+| `what are the plans mentioned` | Lists plan names |
+| `list all entities` | Lists names, companies, dates, prices |
+| `what does this say about the API` | Targeted content question |
+| `find all price mentions` | Entity-focused extraction |
+
+### Multi-Document Compare
+
+| Command | What It Does |
+|---|---|
+| `compare these documents` | Comparison across all active documents (≥2) |
+| `compare these two files for pricing and risks` | Targeted comparison |
+| `which plan is cheaper` | Cost-focused comparison |
+| `what are the differences` | General difference summary |
+| `compare these documents` | Opens picker for 2+ files if no active documents |
+
+---
+
+## 🔐 System Actions
+
+| Command | What It Does |
+|---|---|
+| `lock screen` | Locks the workstation |
+| `lock workstation` | Same |
+
+> **Restricted:** `sleep`, `shutdown`, `restart` are blocked for safety.
 
 ---
 
 ## 💬 Conversational
 
-```text
-who are you
-how r u
-explain how internet works
-```
+| Command | What It Does |
+|---|---|
+| `who are you` | JARVIS identity response |
+| `what can you do` | Capabilities summary |
+| `help` | Quick command reference |
+| `how are you` | Wellbeing response |
+| `hi` / `hello` / `hey` | Greeting |
+| `my name is Deepak` | Stores your name in memory |
+| `what is my name` | Recalls your stored name |
 
 ---
 
-## 🚫 Restricted Cases
+## 🔁 Correction & Refinement
 
-```text
-weather without using tools
-```
+| Command | What It Does |
+|---|---|
+| `that's wrong` | Re-checks last answer from available sources |
+| `incorrect` | Same |
+| `wrong answer` | Same |
+| `search on internet` | Repeats last factual query via web search |
+| `search internet` | Same |
 
-Jarvis refuses live-data answers when tools are explicitly disallowed.
+---
+
+## 🚫 Restricted Commands
+
+| Command | Why Restricted |
+|---|---|
+| `weather without using tools` | Tool-forbidden real-time requests are refused |
+| `shutdown` | Blocked system action |
+| `restart` | Blocked system action |
+| `delete files` | Blocked system action |
 
 ---
 
 ## 🎯 Multi-Intent Queries
 
-```text
+JARVIS supports combining multiple information requests in a single turn:
+
+```
 weather in delhi and latest ai news
 what is my ip and latest ai updates
+system status and what time is it
 ```
 
-Handled through agent planning and synthesis.
+The agent planner decomposes these into parallel tool calls and synthesizes a unified response.
 
 ---
 
-## 🎤 Voice UX Control
+## 🎤 Voice UX Controls
 
-Desktop UI includes a **SKIP** button that safely interrupts current TTS playback.
+| Action | How |
+|---|---|
+| **Skip current reply** | Click the **SKIP** button in the desktop UI |
+| **Voice input** | Speak naturally — Web Speech API is always listening in GUI mode |
+| **Interrupt TTS** | Any new voice input while JARVIS is speaking uses the skip mechanism automatically |
 
 ---
 
-## 🧠 Tip
+<div align="center">
 
-> Combine related queries for richer answers with fewer turns.
+[![Footer](https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=2,3,30&height=100&section=footer)](.)
+
+</div>
