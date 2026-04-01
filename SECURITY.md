@@ -1,107 +1,172 @@
-# 🔐 Security Policy
+<div align="center">
 
-![Security](https://img.shields.io/badge/Security-Policy-blue)
-![Status](https://img.shields.io/badge/Status-Active-success)
+[![Header](https://capsule-render.vercel.app/api?type=waving&color=0D1117,0066FF,00E1FF&height=160&section=header&text=Security%20Policy&fontSize=40&fontColor=ffffff&animation=twinkling&fontAlignY=50)](.)
 
----
+[![Security](https://img.shields.io/badge/Security-Policy%20Active-00C853?style=for-the-badge&logo=shieldsdotio&logoColor=white)](.)
+[![Disclosure](https://img.shields.io/badge/Disclosure-Private%20First-F55036?style=for-the-badge)](.)
+[![Validation](https://img.shields.io/badge/Inputs-Assume%20Untrusted-F7C948?style=for-the-badge)](.)
 
-## 🧠 Overview
-
-Jarvis interacts with:
-
-* external APIs
-* system-level tools
-* local user-selected documents
-* user inputs
-
-Security and reliability are **critical priorities**.
+</div>
 
 ---
 
-## 🚨 Reporting Vulnerabilities
+## 🔭 Scope
 
-If you discover a security issue:
+JARVIS interacts with:
+- **External APIs** (Groq, Serper, Open-Meteo, ipify)
+- **System-level OS tools** (PowerShell, pycaw, screen-brightness-control, pygetwindow)
+- **Local user-selected documents** (PDF, DOCX, images)
+- **Microphone input** and **user text input**
+- **A local HTTP server** serving the pywebview frontend
 
-1. **Do NOT open a public issue**
-2. Report privately via:
+All of these represent potential attack surfaces. This policy defines how security issues are handled and what engineering guarantees are in place.
 
-   * GitHub Security Advisory (preferred)
-   * or trusted direct maintainer contact
+---
 
-Include:
+## 🚨 Reporting a Vulnerability
 
-* clear description
-* steps to reproduce
-* potential impact
-* affected files/modules (if known)
+> **Do NOT open a public GitHub issue for security vulnerabilities.**  
+> Public disclosure before a fix is available puts all users at risk.
+
+### Preferred Channel
+
+Use **[GitHub Security Advisories](../../security/advisories/new)** — this creates a private, encrypted channel between you and the maintainer.
+
+### Alternative
+
+Contact the maintainer directly via trusted channels (listed in GitHub profile).
+
+### What to Include
+
+Please provide as much of the following as possible:
+
+| Field | Description |
+|---|---|
+| **Summary** | Clear description of the vulnerability |
+| **Reproduction** | Step-by-step steps to reproduce |
+| **Impact** | What an attacker could achieve |
+| **Affected files** | Which modules or files are involved |
+| **Suggested fix** | If you have one (optional but appreciated) |
+
+### Response Timeline
+
+| Stage | Target Timeline |
+|---|---|
+| Acknowledgement | Within 48 hours |
+| Initial assessment | Within 5 business days |
+| Fix or mitigation | Depends on severity and complexity |
+| Public disclosure | After fix is released and users have had time to update |
 
 ---
 
 ## ⚠️ Sensitive Areas
 
-Pay special attention to:
+These components receive heightened scrutiny in all reviews:
 
-* API key handling (`.env`)
-* system command execution
-* tool execution safety
-* external API responses
-* document file validation and parser pipeline behavior
+### 🔑 API Key Handling
+
+- API keys are loaded exclusively from `.env` via `core/env.py`
+- Keys are **never logged**, never embedded in code, never committed
+- The `.gitignore` excludes `.env` and all credential files
+- `GROQ_API_KEY`, `SERPER_API_KEY`, and `HF_TOKEN` are treated as production secrets
+
+### 🖥️ System Command Execution
+
+- All system control actions pass through `SystemControlValidator` before execution
+- Dangerous actions (`shutdown`, `restart`, `reboot`, `delete`, `format`, `exec`) are **permanently blocked** in the validator's `_BLOCKED_ACTIONS` set
+- `sleep` is blocked in safe mode (default on)
+- Rate limiting (30 actions/minute) prevents automated abuse
+- Action logs are maintained for audit trail
+
+### 🔧 Tool Execution Safety
+
+- Every planned tool call passes through `agent/validator.py` before execution
+- Tool output is validated post-execution; failed validation triggers a retry or refusal
+- The synthesizer never upgrades tool errors into claimed successes
+- Tool functions are deterministic and stateless — no hidden LLM calls
+
+### 📡 External API Responses
+
+- API responses are parsed defensively — unexpected shapes return safe fallbacks
+- Weather, IP, and search results are never stored as authoritative facts without re-verification
+- The synthesizer's relevance filter removes semantically unrelated results before synthesis
+
+### 📄 Document Pipeline
+
+- File selection is **always user/system initiated** — the LLM cannot trigger the file picker
+- `validate_file_path()` runs before any parsing begins: existence, type, and size (max 100 MB) are all checked
+- Unsupported file types are rejected with a clear error message
+- Fail-open behavior: pipeline failures return structured errors, never partial or unsafe execution
+- The document cache stores derived intelligence only — original file bytes are never cached
+
+### 🌐 Local HTTP Server
+
+- The static server binding `127.0.0.1` (loopback only) — not accessible from the network
+- Port is OS-assigned (ephemeral) to prevent predictable targeting
+- Handler suppresses all access logging to avoid sensitive path disclosure
 
 ---
 
 ## 🔑 Secrets Management
 
-* Never commit `.env` files
-* Use `.env.example` as reference
-* Rotate compromised keys immediately
-* Treat `GROQ_API_KEY`, `SERPER_API_KEY`, and `HF_TOKEN` as sensitive
+```
+✅  DO   Store secrets in .env (never committed)
+✅  DO   Use .env.example as a safe public reference template
+✅  DO   Rotate compromised keys immediately via provider console
+✅  DO   Treat all three API keys as production secrets
+
+❌  DON'T  Commit .env to version control
+❌  DON'T  Log API keys in debug output
+❌  DON'T  Hardcode keys in source files
+❌  DON'T  Share keys in GitHub issues or PRs
+```
 
 ---
 
-## 🛡️ Safe Usage Guidelines
+## 🛡️ Engineering Guarantees
 
-* Validate all tool outputs
-* Do not trust external APIs blindly
-* Avoid executing unsafe system commands
-* Ensure proper error handling
-* Keep fallback messaging human-readable to avoid exposing internal tool payloads
-* Keep file-picking and path validation in system code, never model-controlled logic
-* Restrict document inputs to supported file types and sane size limits
+The following are **architectural security properties** enforced in code, not just by policy:
 
----
-
-## 📄 Document Pipeline Security Notes
-
-Current hardening expectations:
-
-* File selection remains user/system initiated
-* Paths are validated before parsing
-* Unsupported or oversized files are rejected
-* Fail-open behavior should return safe errors, not partial unsafe execution
-* Document cache stores derived intelligence locally; protect host access and clear cache on sensitive systems
-
-Operational hardening expectations:
-
-* Connectivity checks should remain deterministic and probe-backed
-* Forecast/rain weather responses should use daily weather payloads where available
+| Property | Enforced By |
+|---|---|
+| No LLM-triggered file picker | `_handle_document()` gating in `core/runtime.py` |
+| No dangerous system actions | `SystemControlValidator._BLOCKED_ACTIONS` |
+| No unauthenticated remote access | Local HTTP server binds `127.0.0.1` only |
+| No raw tool payload in responses | `Synthesizer._render_*_fallback()` methods |
+| No identity drift | `_enforce_assistant_identity()` on every LLM response |
+| No hallucinated real-time data | Tool refusal for disallowed-tool real-time requests |
+| Path traversal prevention | `pathlib.Path.resolve()` + existence checks in `validate_file_path()` |
+| Input length limits | App names max 80 chars, file sizes max 100 MB |
 
 ---
 
-## 🚫 Known Limitations
+## ⚡ Known Limitations
 
-* Depends on third-party APIs
-* No full sandboxing for system tools
-* Requires user supervision for critical actions
-* OCR/vision quality depends on external models and network conditions
+Being transparent about what we do **not** currently protect against:
+
+| Limitation | Notes |
+|---|---|
+| **No full process sandboxing** | System tool execution is validated but not containerized |
+| **Third-party API trust** | We validate responses but cannot guarantee upstream API integrity |
+| **OCR/Vision model quality** | Output accuracy depends on external Groq model behavior |
+| **Microphone access** | Requires OS-level permission; no server-side audio processing |
+| **User supervision required** | JARVIS is designed for interactive use, not unattended automation |
+| **Windows-only system controls** | Volume/brightness/window control uses Windows APIs |
 
 ---
 
-## 🧭 Policy Principle
+## 🧭 Security Principle
 
 > **Assume all inputs are untrusted. Validate everything.**
 
+This is not a suggestion — it is an architectural requirement. Every module that accepts external input (user text, file paths, API responses, browser STT transcripts) must validate and sanitize before acting.
+
 ---
 
-## 👤 Maintainer
+<div align="center">
 
-**Deepak Rakshit**
+*Maintained by **Deepak Rakshit***
+
+[![Footer](https://capsule-render.vercel.app/api?type=waving&color=0D1117,0066FF,00E1FF&height=100&section=footer)](.)
+
+</div>
