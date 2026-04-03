@@ -324,7 +324,7 @@ class JarvisBridge:
                 if utterance == "__greet__":
                     self.runtime.greet(stream_to_stdout=self._stream_to_stdout)
                 else:
-                    self.runtime.ask_groq(utterance, stream_to_stdout=self._stream_to_stdout)
+                    self.runtime.ask(utterance, stream_to_stdout=self._stream_to_stdout)
             except Exception:
                 self._on_mode_change("listening")
 

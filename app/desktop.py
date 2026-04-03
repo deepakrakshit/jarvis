@@ -67,8 +67,8 @@ def run_desktop(
 
 def main() -> None:
     config = AppConfig.from_env(".env")
-    if not config.groq_api_key:
-        raise RuntimeError("Missing GROQ_API_KEY")
+    if not config.primary_llm_api_key():
+        raise RuntimeError(f"Missing {config.required_primary_llm_key_name()}")
 
     try:
         run_desktop(config)

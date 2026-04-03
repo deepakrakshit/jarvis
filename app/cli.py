@@ -44,7 +44,7 @@ def run_cli(
                 break
 
             print(f"you > {clean}")
-            active_runtime.ask_groq(clean)
+            active_runtime.ask(clean)
     finally:
         if close_runtime and owns_runtime:
             active_runtime.close()
@@ -54,8 +54,8 @@ def main() -> None:
     logging.getLogger().setLevel(logging.ERROR)
 
     config = AppConfig.from_env(".env")
-    if not config.groq_api_key:
-        raise RuntimeError("Missing GROQ_API_KEY")
+    if not config.primary_llm_api_key():
+        raise RuntimeError(f"Missing {config.required_primary_llm_key_name()}")
 
     try:
         run_cli(config)

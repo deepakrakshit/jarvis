@@ -64,8 +64,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _run_both_connected() -> None:
     config = AppConfig.from_env(".env")
-    if not config.groq_api_key:
-        raise RuntimeError("Missing GROQ_API_KEY")
+    if not config.primary_llm_api_key():
+        raise RuntimeError(f"Missing {config.required_primary_llm_key_name()}")
 
     ensure_deps()
     ensure_gui_deps()
