@@ -88,6 +88,26 @@ class SystemControlValidatorTest(unittest.TestCase):
         self.assertEqual(min_brightness.action, "set_brightness")
         self.assertEqual(min_brightness.params.get("level"), 0)
 
+    def test_shortcut_and_media_actions_are_canonicalized(self) -> None:
+        validator = SystemControlValidator(SystemControlConfig(safe_mode=True))
+
+        next_tab = validator.validate("next tab", {})
+        display_off = validator.validate("turn off display", {})
+        media_next = validator.validate("next track", {})
+        ctrl_copy = validator.validate("ctrl+c", {})
+
+        self.assertTrue(next_tab.valid)
+        self.assertEqual(next_tab.action, "next_tab")
+
+        self.assertTrue(display_off.valid)
+        self.assertEqual(display_off.action, "display_off")
+
+        self.assertTrue(media_next.valid)
+        self.assertEqual(media_next.action, "media_next_track")
+
+        self.assertTrue(ctrl_copy.valid)
+        self.assertEqual(ctrl_copy.action, "copy")
+
 
 class SystemControlServiceTest(unittest.TestCase):
     def test_blocks_more_than_three_actions_per_request(self) -> None:
@@ -143,6 +163,23 @@ class SystemControlServiceTest(unittest.TestCase):
         self.assertTrue(bool(result.get("success")))
         self.assertEqual(result.get("action"), "set_brightness")
         self.assertEqual((result.get("state") or {}).get("brightness"), 50)
+
+    def test_service_handles_natural_language_tab_request(self) -> None:
+        service = SystemControlService(SystemControlConfig(safe_mode=True))
+
+        with patch.object(service, "_dispatcher", {"next_tab": lambda _a, _params: {
+            "status": "success",
+            "action": "next_tab",
+            "success": True,
+            "verified": False,
+            "error": "",
+            "state": {"method": "pyautogui"},
+            "message": "Moved to the next tab.",
+        }}):
+            result = service.control(action="next tab", params={})
+
+        self.assertTrue(bool(result.get("success")))
+        self.assertEqual(result.get("action"), "next_tab")
 
 
 if __name__ == "__main__":

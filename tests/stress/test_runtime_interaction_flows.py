@@ -79,6 +79,13 @@ class RuntimeInteractionFlowsTest(unittest.TestCase):
         self.assertTrue(runtime._is_search_or_factual_request("who won ipl 2025 season"))
         self.assertFalse(runtime._is_search_or_factual_request("what is my ip"))
 
+    def test_browser_navigation_phrase_not_treated_as_factual_search(self) -> None:
+        runtime = self._runtime_minimal()
+
+        prompt = "open chrome and search on youtube about python tutorials"
+        self.assertTrue(runtime._is_browser_navigation_request(prompt))
+        self.assertFalse(runtime._is_search_or_factual_request(prompt))
+
     def test_connectivity_phrase_not_treated_as_search_policy_feedback(self) -> None:
         runtime = self._runtime_minimal()
 

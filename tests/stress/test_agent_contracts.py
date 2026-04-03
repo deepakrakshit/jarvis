@@ -7,7 +7,7 @@ from agent.executor import ToolExecutor
 from agent.planner import PlanStep, Planner
 from agent.synthesizer import Synthesizer
 from agent.tool_registry import ToolDefinition, ToolRegistry
-from agent.validator import PlanValidator
+from agent.validator import PlanValidator, ToolOutputValidator
 from core.settings import AppConfig
 
 
@@ -83,6 +83,59 @@ class AgentContractsStressTest(unittest.TestCase):
         self.assertTrue(loop.should_use_agent("open file picker"))
         self.assertTrue(loop.should_use_agent("close it"))
         self.assertTrue(loop.should_use_agent("what is my ip"))
+
+    def test_prepare_plan_adds_missing_computer_action_and_document_marker(self) -> None:
+        config = AppConfig.from_env(".env")
+        registry = self._registry()
+        loop = AgentLoop(
+            planner=Planner(config, registry),
+            executor=ToolExecutor(registry),
+            synthesizer=Synthesizer(config),
+            validator=PlanValidator(registry),
+        )
+
+        prepared = loop._prepare_plan_for_execution(
+            [
+                PlanStep(tool="computer_control", args={"goal": "search for cat videos on YouTube"}),
+                PlanStep(tool="document", args={"query": "summarize this document"}),
+            ],
+            user_query="summarize this document",
+        )
+
+        self.assertEqual(prepared[0].tool, "computer_control")
+        self.assertEqual(prepared[0].args.get("action"), "autonomous_task")
+        self.assertEqual(prepared[0].args.get("goal"), "search for cat videos on YouTube")
+        self.assertEqual(prepared[1].tool, "document")
+        self.assertEqual(prepared[1].args.get("file_path"), "__active_document__")
+
+    def test_weather_location_match_accepts_city_with_label_suffix(self) -> None:
+        validator = ToolOutputValidator()
+        result = validator.validate_tool_output(
+            "weather",
+            {"location": "Nagpur, Maharashtra, India"},
+            {
+                "success": True,
+                "temperature_c": 31.2,
+                "tool_location": "Nagpur",
+                "tool_location_label": "Nagpur, Maharashtra, India",
+            },
+        )
+        self.assertTrue(result.valid, result.reason)
+
+    def test_weather_location_match_still_rejects_unrelated_city(self) -> None:
+        validator = ToolOutputValidator()
+        result = validator.validate_tool_output(
+            "weather",
+            {"location": "Paris"},
+            {
+                "success": True,
+                "temperature_c": 22.0,
+                "tool_location": "Nagpur",
+                "tool_location_label": "Nagpur, Maharashtra, India",
+            },
+        )
+        self.assertFalse(result.valid)
+        self.assertEqual(result.reason, "location_mismatch")
 
 
 if __name__ == "__main__":
