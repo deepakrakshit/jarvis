@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import json
 import logging
 import os
@@ -17,10 +18,12 @@ import requests
 
 from core.settings import AppConfig
 
-logging.getLogger().setLevel(logging.ERROR)
+logger = logging.getLogger(__name__)
 
 
 class RealtimePiperTTS:
+    """RealtimeTTS + Piper backend with turn-based interruption safety."""
+
     def __init__(
         self,
         config: AppConfig,
@@ -31,10 +34,12 @@ class RealtimePiperTTS:
         self.config = config
         self._on_speaking_start = on_speaking_start
         self._on_speaking_stop = on_speaking_stop
+
         self._speech_queue: queue.Queue[tuple[int, str]] = queue.Queue()
         self._stop_worker = threading.Event()
         self._turn_lock = threading.Lock()
         self._tts_lock = threading.Lock()
+
         self._turn_id = 0
         self._pending_chunks = 0
         self._stream_started = False
@@ -43,23 +48,33 @@ class RealtimePiperTTS:
 
         self._speaker_thread = threading.Thread(
             target=self._tts_worker,
-            name="jarvis-tts-worker",
+            name="jarvis-piper-tts-worker",
             daemon=True,
         )
         self._speaker_thread.start()
 
     def _import_tts_classes(self) -> tuple[Any, Any, Any]:
-        try:
-            from realtime_tts import PiperEngine, TextToAudioStream
+        module_names = ("realtime_tts", "RealtimeTTS")
+
+        for module_name in module_names:
             try:
-                from realtime_tts import PiperVoice
-            except ImportError:
-                from RealtimeTTS.engines.piper_engine import PiperVoice
-            return PiperEngine, TextToAudioStream, PiperVoice
-        except ImportError:
-            from RealtimeTTS import PiperEngine, TextToAudioStream
-            from RealtimeTTS.engines.piper_engine import PiperVoice
-            return PiperEngine, TextToAudioStream, PiperVoice
+                module = importlib.import_module(module_name)
+                piper_engine = getattr(module, "PiperEngine")
+                text_to_audio_stream = getattr(module, "TextToAudioStream")
+
+                piper_voice = getattr(module, "PiperVoice", None)
+                if piper_voice is None:
+                    try:
+                        voice_module = importlib.import_module(f"{module_name}.engines.piper_engine")
+                    except Exception:
+                        voice_module = importlib.import_module("RealtimeTTS.engines.piper_engine")
+                    piper_voice = getattr(voice_module, "PiperVoice")
+
+                return piper_engine, text_to_audio_stream, piper_voice
+            except Exception:
+                continue
+
+        raise ImportError("RealtimeTTS package with Piper support is not available")
 
     def _download_file(self, url: str, target_path: str) -> None:
         headers = {"Authorization": f"Bearer {self.config.hf_token}"} if self.config.hf_token else {}
@@ -118,7 +133,7 @@ class RealtimePiperTTS:
             "Piper executable not found. Set PIPER_PATH in .env or install piper.exe in your venv Scripts folder."
         )
 
-    def _init_tts(self):
+    def _init_tts(self) -> tuple[Any, Any]:
         PiperEngine, TextToAudioStream, PiperVoice = self._import_tts_classes()
 
         model_path, config_path = self._ensure_piper_voice_files()
@@ -126,18 +141,17 @@ class RealtimePiperTTS:
         sample_rate = self._read_piper_sample_rate(config_path)
 
         class AdaptivePiperEngine(PiperEngine):
-            def __init__(self, *, output_rate: int, **kwargs):
+            def __init__(self, *, output_rate: int, **kwargs: Any) -> None:
                 self.output_rate = int(output_rate)
                 super().__init__(**kwargs)
 
-            def get_stream_info(self):
+            def get_stream_info(self) -> tuple[Any, int, int]:
                 import pyaudio
 
                 return pyaudio.paInt16, 1, self.output_rate
 
             def synthesize(self, text: str) -> bool:
                 if not self.voice:
-                    print("No voice set. Please provide a PiperVoice configuration.")
                     return False
 
                 with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav_file:
@@ -166,12 +180,6 @@ class RealtimePiperTTS:
 
                     with wave.open(output_wav_path, "rb") as wav_file:
                         if wav_file.getnchannels() != 1 or wav_file.getsampwidth() != 2:
-                            print(
-                                "Unexpected WAV properties: "
-                                f"Channels={wav_file.getnchannels()}, "
-                                f"Rate={wav_file.getframerate()}, "
-                                f"Width={wav_file.getsampwidth()}"
-                            )
                             return False
 
                         audio_data = wav_file.readframes(wav_file.getnframes())
@@ -192,14 +200,7 @@ class RealtimePiperTTS:
                         self.queue.put(audio_data)
 
                     return True
-                except FileNotFoundError:
-                    print(f"Error: Piper executable not found at '{self.piper_path}'.")
-                    return False
-                except subprocess.CalledProcessError as error:
-                    print(
-                        "Error running Piper: "
-                        + error.stderr.decode("utf-8", errors="replace")
-                    )
+                except Exception:
                     return False
                 finally:
                     if os.path.isfile(output_wav_path):
@@ -283,7 +284,7 @@ class RealtimePiperTTS:
         return cleaned.strip()
 
     def enqueue_text(self, chunk: str, turn_id: int) -> bool:
-        text = " ".join(chunk.strip().split())
+        text = " ".join(str(chunk or "").strip().split())
         text = text.strip('"')
         text = self._prepare_for_tts(text)
         if not text:
@@ -307,12 +308,8 @@ class RealtimePiperTTS:
             if turn_id != active_turn:
                 return
 
-            is_playing = False
             with self._tts_lock:
-                try:
-                    is_playing = self._stream_started and self.stream.is_playing()
-                except Exception:
-                    is_playing = False
+                is_playing = self._stream_started and self.stream.is_playing()
 
             if pending_chunks <= 0 and not is_playing:
                 return
@@ -322,23 +319,37 @@ class RealtimePiperTTS:
 
             time.sleep(0.02)
 
+    def _is_active_turn(self, turn_id: int) -> bool:
+        with self._turn_lock:
+            return turn_id == self._turn_id
+
     def _tts_worker(self) -> None:
         while not self._stop_worker.is_set():
             try:
-                turn_id, text = self._speech_queue.get(timeout=self.config.tts_queue_timeout)
+                turn_id, text = self._speech_queue.get(timeout=float(self.config.tts_queue_timeout))
             except queue.Empty:
                 continue
 
-            if turn_id != self._turn_id:
+            if not self._is_active_turn(turn_id):
+                with self._turn_lock:
+                    if self._pending_chunks > 0:
+                        self._pending_chunks -= 1
                 continue
 
             try:
                 with self._tts_lock:
+                    if not self._is_active_turn(turn_id):
+                        continue
+
                     min_sentence_length = max(10, min(self.config.tts_min_sentence_length, 15))
                     min_first_fragment_length = max(8, min(self.config.tts_min_first_fragment_length, 11))
                     force_first_fragment_after_words = max(9, min(self.config.tts_force_first_fragment_after_words, 13))
 
                     self.stream.feed(text + " ")
+                    if not self._is_active_turn(turn_id):
+                        self.stream.stop()
+                        continue
+
                     if not self.stream.is_playing():
                         self._stream_started = True
                         self.stream.play_async(
@@ -351,8 +362,8 @@ class RealtimePiperTTS:
                             force_first_fragment_after_words=force_first_fragment_after_words,
                             language="en",
                         )
-            except Exception:
-                continue
+            except Exception as exc:
+                logger.warning("Realtime Piper TTS playback failed: %s", exc)
             finally:
                 with self._turn_lock:
                     if turn_id == self._turn_id and self._pending_chunks > 0:
