@@ -123,16 +123,9 @@ class WeatherService:
         user_text: str,
     ) -> str:
         desc = self._describe(code)
-        advisory = self.humor.weather_line(
-            temp_c=temp_c,
-            condition=desc,
-            weather_code=code,
-            context=location.label,
-        )
-
         message = (
             f"Weather for {location.label}: {temp_c:.1f}C, feels like {feels_c:.1f}C, "
-            f"{desc}, humidity {humidity:.0f}%, wind {wind_kmh:.1f} km/h. {advisory}"
+            f"{desc}, humidity {humidity:.0f}%, wind {wind_kmh:.1f} km/h."
         )
         return self.personality.finalize(message, user_text=user_text)
 
@@ -416,17 +409,9 @@ class WeatherService:
         humidity = float(payload.get("humidity_percent") or 0.0)
         wind_kmh = float(payload.get("wind_kmh") or 0.0)
         condition = str(payload.get("condition") or "variable conditions")
-        weather_code = int(payload.get("weather_code") or 0)
-
-        advisory = self.humor.weather_line(
-            temp_c=temp_c,
-            condition=condition,
-            weather_code=weather_code,
-            context=label,
-        )
 
         message = (
             f"Weather for {label}: {temp_c:.1f}C, feels like {feels_c:.1f}C, "
-            f"{condition}, humidity {humidity:.0f}%, wind {wind_kmh:.1f} km/h. {advisory}"
+            f"{condition}, humidity {humidity:.0f}%, wind {wind_kmh:.1f} km/h."
         )
         return self.personality.finalize(message, user_text=user_text)

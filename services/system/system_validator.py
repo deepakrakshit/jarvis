@@ -18,6 +18,7 @@ class SystemControlValidator:
         "set_brightness",
         "switch_window",
         "minimize_window",
+        "maximize_window",
         "restore_window",
         "focus_window",
         "close_window",
@@ -25,6 +26,40 @@ class SystemControlValidator:
         "restore_all_windows",
         "show_desktop",
         "restore_specific",
+        "task_view",
+        "snap_window_left",
+        "snap_window_right",
+        "snap_window_up",
+        "snap_window_down",
+        "display_off",
+        "display_on",
+        "toggle_projection_mode",
+        "media_play_pause",
+        "media_next_track",
+        "media_previous_track",
+        "media_stop",
+        "new_tab",
+        "close_tab",
+        "reopen_closed_tab",
+        "next_tab",
+        "previous_tab",
+        "refresh_page",
+        "hard_refresh",
+        "go_back",
+        "go_forward",
+        "open_history",
+        "open_downloads",
+        "copy",
+        "paste",
+        "cut",
+        "undo",
+        "redo",
+        "select_all",
+        "save",
+        "find",
+        "zoom_in",
+        "zoom_out",
+        "zoom_reset",
         "lock_screen",
     }
     _BLOCKED_ACTIONS = {
@@ -39,13 +74,60 @@ class SystemControlValidator:
     _ACTION_ALIASES = {
         "volume_up": "increase_volume",
         "volume_down": "decrease_volume",
+        "vol_up": "increase_volume",
+        "vol_down": "decrease_volume",
+        "sound_up": "increase_volume",
+        "sound_down": "decrease_volume",
         "set_brightness_level": "set_brightness",
         "brightness_up": "increase_brightness",
         "brightness_down": "decrease_brightness",
         "minimise_window": "minimize_window",
+        "maximise_window": "maximize_window",
+        "restore_app": "restore_specific",
         "minimise_all_windows": "minimize_all_windows",
         "lock": "lock_screen",
         "lock_workstation": "lock_screen",
+        "screen_off": "display_off",
+        "monitor_off": "display_off",
+        "display_off": "display_off",
+        "screen_on": "display_on",
+        "monitor_on": "display_on",
+        "display_on": "display_on",
+        "projection_mode": "toggle_projection_mode",
+        "project_screen": "toggle_projection_mode",
+        "play_pause": "media_play_pause",
+        "toggle_play_pause": "media_play_pause",
+        "next_track": "media_next_track",
+        "previous_track": "media_previous_track",
+        "prev_track": "media_previous_track",
+        "stop_playback": "media_stop",
+        "new_tab": "new_tab",
+        "open_new_tab": "new_tab",
+        "close_tab": "close_tab",
+        "reopen_tab": "reopen_closed_tab",
+        "undo_close_tab": "reopen_closed_tab",
+        "next_tab": "next_tab",
+        "prev_tab": "previous_tab",
+        "previous_tab": "previous_tab",
+        "reload": "refresh_page",
+        "refresh": "refresh_page",
+        "hard_reload": "hard_refresh",
+        "force_refresh": "hard_refresh",
+        "browser_back": "go_back",
+        "browser_forward": "go_forward",
+        "history": "open_history",
+        "downloads": "open_downloads",
+        "ctrl_c": "copy",
+        "ctrl_v": "paste",
+        "ctrl_x": "cut",
+        "ctrl_z": "undo",
+        "ctrl_y": "redo",
+        "ctrl_a": "select_all",
+        "ctrl_s": "save",
+        "ctrl_f": "find",
+        "zoom_plus": "zoom_in",
+        "zoom_minus": "zoom_out",
+        "reset_zoom": "zoom_reset",
     }
 
     def __init__(self, config: SystemControlConfig) -> None:
@@ -132,6 +214,21 @@ class SystemControlValidator:
             if self._contains_any(phrase, {"set", "change", "adjust"}) or "level" in params:
                 return "set_volume"
 
+        if self._contains_any(phrase, {"task view", "show task view", "open task view"}):
+            return "task_view"
+
+        if self._contains_any(phrase, {"snap window left", "snap left", "move window left"}):
+            return "snap_window_left"
+
+        if self._contains_any(phrase, {"snap window right", "snap right", "move window right"}):
+            return "snap_window_right"
+
+        if self._contains_any(phrase, {"snap window up", "snap up", "maximize by snap"}):
+            return "snap_window_up"
+
+        if self._contains_any(phrase, {"snap window down", "snap down", "minimize by snap"}):
+            return "snap_window_down"
+
         if self._contains_any(phrase, {"show desktop", "desktop"}) and "show" in phrase:
             return "show_desktop"
 
@@ -146,6 +243,9 @@ class SystemControlValidator:
 
         if self._contains_any(phrase, {"minimize window", "minimise window", "minimize this window", "minimise this window"}):
             return "minimize_window"
+
+        if self._contains_any(phrase, {"maximize window", "maximise window", "maximize this window", "maximise this window"}):
+            return "maximize_window"
 
         if self._contains_any(phrase, {"restore window", "restore this window"}):
             return "restore_window"
@@ -165,8 +265,123 @@ class SystemControlValidator:
         if self._contains_any(phrase, {"lock screen", "lock workstation"}) or phrase == "lock":
             return "lock_screen"
 
+        if self._contains_any(
+            phrase,
+            {
+                "turn off display",
+                "display off",
+                "turn off screen",
+                "screen off",
+                "turn off monitor",
+                "monitor off",
+            },
+        ):
+            return "display_off"
+
+        if self._contains_any(
+            phrase,
+            {
+                "turn on display",
+                "display on",
+                "turn on screen",
+                "screen on",
+                "turn on monitor",
+                "monitor on",
+                "wake display",
+                "wake screen",
+            },
+        ):
+            return "display_on"
+
+        if self._contains_any(phrase, {"projection mode", "project screen", "display projection", "win p"}):
+            return "toggle_projection_mode"
+
+        if self._contains_any(phrase, {"play pause", "pause play", "toggle playback", "media play", "media pause"}):
+            return "media_play_pause"
+
+        if self._contains_any(phrase, {"next track", "next song", "skip track", "media next"}):
+            return "media_next_track"
+
+        if self._contains_any(phrase, {"previous track", "prev track", "last track", "media previous"}):
+            return "media_previous_track"
+
+        if self._contains_any(phrase, {"stop playback", "stop media", "media stop"}):
+            return "media_stop"
+
+        if re.search(r"\b(new|open)\s+(a\s+)?tab\b", phrase):
+            return "new_tab"
+
+        if re.search(r"\bclose\s+(current\s+)?tab\b", phrase):
+            return "close_tab"
+
+        if self._contains_any(phrase, {"reopen tab", "reopen closed tab", "undo close tab", "restore tab"}):
+            return "reopen_closed_tab"
+
+        if re.search(r"\bnext\s+tab\b", phrase):
+            return "next_tab"
+
+        if re.search(r"\b(previous|prev|last)\s+tab\b", phrase):
+            return "previous_tab"
+
+        if self._contains_any(phrase, {"hard refresh", "force refresh", "reload without cache", "ctrl shift r"}):
+            return "hard_refresh"
+
+        if self._contains_any(phrase, {"refresh page", "refresh tab", "reload page", "reload tab", "f5"}):
+            return "refresh_page"
+
+        if self._contains_any(phrase, {"go back", "back page", "browser back", "navigate back"}) or phrase == "back":
+            return "go_back"
+
+        if self._contains_any(phrase, {"go forward", "forward page", "browser forward", "navigate forward"}) or phrase == "forward":
+            return "go_forward"
+
+        if self._contains_any(phrase, {"open history", "show history", "browser history", "ctrl h"}):
+            return "open_history"
+
+        if self._contains_any(phrase, {"open downloads", "show downloads", "browser downloads", "ctrl j"}):
+            return "open_downloads"
+
+        if phrase == "copy" or self._contains_any(phrase, {"copy shortcut", "ctrl c", "press copy"}):
+            return "copy"
+
+        if phrase == "paste" or self._contains_any(phrase, {"paste shortcut", "ctrl v", "press paste"}):
+            return "paste"
+
+        if phrase == "cut" or self._contains_any(phrase, {"cut shortcut", "ctrl x", "press cut"}):
+            return "cut"
+
+        if phrase == "undo" or self._contains_any(phrase, {"undo shortcut", "ctrl z"}):
+            return "undo"
+
+        if phrase == "redo" or self._contains_any(phrase, {"redo shortcut", "ctrl y", "ctrl shift z"}):
+            return "redo"
+
+        if phrase == "select all" or self._contains_any(phrase, {"ctrl a", "select everything"}):
+            return "select_all"
+
+        if phrase == "save" or self._contains_any(phrase, {"save file", "save page", "ctrl s"}):
+            return "save"
+
+        if phrase == "find" or self._contains_any(phrase, {"find text", "find in page", "search in page", "ctrl f"}):
+            return "find"
+
+        if self._contains_any(phrase, {"zoom in", "increase zoom", "ctrl +", "ctrl plus"}):
+            return "zoom_in"
+
+        if self._contains_any(phrase, {"zoom out", "decrease zoom", "ctrl -", "ctrl minus"}):
+            return "zoom_out"
+
+        if self._contains_any(phrase, {"reset zoom", "default zoom", "normal zoom", "ctrl 0"}):
+            return "zoom_reset"
+
         if phrase == "sleep" or "sleep mode" in phrase:
             return "sleep"
+
+        if self._contains_any(phrase, {"shutdown", "power off computer", "turn off computer"}):
+            return "shutdown"
+
+        if self._contains_any(phrase, {"restart", "reboot"}):
+            return "restart"
 
         return normalized
 

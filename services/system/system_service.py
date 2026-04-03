@@ -9,6 +9,7 @@ from typing import Any
 
 from services.system.brightness_control import BrightnessController
 from services.system.desktop_control import DesktopController
+from services.system.shortcut_control import ShortcutController
 from services.system.system_models import ActionLogEntry, SystemControlConfig
 from services.system.system_validator import SystemControlValidator
 from services.system.volume_control import VolumeController
@@ -30,6 +31,7 @@ class SystemControlService:
         self._desktop = DesktopController(self._window)
         self._volume = VolumeController()
         self._brightness = BrightnessController()
+        self._shortcut = ShortcutController()
 
         self._rate_timestamps: deque[float] = deque()
         self._action_logs: deque[ActionLogEntry] = deque(maxlen=max(20, cfg.action_log_limit))
@@ -45,6 +47,7 @@ class SystemControlService:
             "set_brightness": self._brightness.execute,
             "switch_window": self._window.execute,
             "minimize_window": self._window.execute,
+            "maximize_window": self._window.execute,
             "restore_window": self._window.execute,
             "focus_window": self._window.execute,
             "close_window": self._window.execute,
@@ -54,6 +57,40 @@ class SystemControlService:
             "restore_specific": self._desktop.execute,
             "lock_screen": self._execute_system_action,
             "sleep": self._execute_system_action,
+            "task_view": self._shortcut.execute,
+            "snap_window_left": self._shortcut.execute,
+            "snap_window_right": self._shortcut.execute,
+            "snap_window_up": self._shortcut.execute,
+            "snap_window_down": self._shortcut.execute,
+            "display_off": self._shortcut.execute,
+            "display_on": self._shortcut.execute,
+            "toggle_projection_mode": self._shortcut.execute,
+            "media_play_pause": self._shortcut.execute,
+            "media_next_track": self._shortcut.execute,
+            "media_previous_track": self._shortcut.execute,
+            "media_stop": self._shortcut.execute,
+            "new_tab": self._shortcut.execute,
+            "close_tab": self._shortcut.execute,
+            "reopen_closed_tab": self._shortcut.execute,
+            "next_tab": self._shortcut.execute,
+            "previous_tab": self._shortcut.execute,
+            "refresh_page": self._shortcut.execute,
+            "hard_refresh": self._shortcut.execute,
+            "go_back": self._shortcut.execute,
+            "go_forward": self._shortcut.execute,
+            "open_history": self._shortcut.execute,
+            "open_downloads": self._shortcut.execute,
+            "copy": self._shortcut.execute,
+            "paste": self._shortcut.execute,
+            "cut": self._shortcut.execute,
+            "undo": self._shortcut.execute,
+            "redo": self._shortcut.execute,
+            "select_all": self._shortcut.execute,
+            "save": self._shortcut.execute,
+            "find": self._shortcut.execute,
+            "zoom_in": self._shortcut.execute,
+            "zoom_out": self._shortcut.execute,
+            "zoom_reset": self._shortcut.execute,
         }
 
     def control(self, *, action: str, params: dict[str, Any] | None = None) -> dict[str, Any]:

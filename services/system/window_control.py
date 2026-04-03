@@ -19,6 +19,8 @@ class WindowController:
             return self.switch_window()
         if normalized == "minimize_window":
             return self.minimize_window()
+        if normalized == "maximize_window":
+            return self.maximize_window()
         if normalized == "restore_window":
             return self.restore_window()
         if normalized == "focus_window":
@@ -79,6 +81,24 @@ class WindowController:
             }
         except Exception:
             return self._error("restore_window", "execution_failed")
+
+    def maximize_window(self) -> dict[str, Any]:
+        window = self._active_window()
+        if window is None:
+            return self._error("maximize_window", "window_not_found")
+        try:
+            window.maximize()
+            return {
+                "status": "success",
+                "action": "maximize_window",
+                "success": True,
+                "verified": bool(getattr(window, "isMaximized", False)),
+                "error": "",
+                "state": {"title": str(getattr(window, "title", "") or "")},
+                "message": "Window maximized.",
+            }
+        except Exception:
+            return self._error("maximize_window", "execution_failed")
 
     def focus_window(self, app_name: str) -> dict[str, Any]:
         target = self._find_window(app_name)
