@@ -1,4 +1,4 @@
-"""Vision client for document image understanding via Groq.
+"""Vision client for document image understanding via Gemini.
 
 This module is responsible for vision-only extraction from document images.
 It enforces strict JSON outputs and includes retry/fallback behavior for
@@ -36,7 +36,7 @@ from services.document.vision_payload import (
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_GROQ_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+_DEFAULT_GEMINI_VISION_MODEL = "gemini-2.5-flash"
 
 _VISION_PROMPT = """You are a document vision extractor.
 Analyze the provided document image and return ONLY valid JSON with this exact schema:
@@ -59,8 +59,8 @@ Rules:
 @dataclass(frozen=True)
 class VisionConfig:
     api_key: str
-    api_url: str = "https://api.groq.com/openai/v1/chat/completions"
-    primary_model: str = _DEFAULT_GROQ_VISION_MODEL
+    api_url: str = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    primary_model: str = _DEFAULT_GEMINI_VISION_MODEL
     fallback_models: tuple[str, ...] = ()
     timeout_seconds: float = 25.0
     max_retries_per_model: int = 0
@@ -71,7 +71,7 @@ class VisionConfig:
 
 
 class VisionProcessor:
-    """Groq-backed vision processor with strict JSON extraction."""
+    """Gemini-backed vision processor with strict JSON extraction."""
 
     _SECOND_PASS_DELAY_SECONDS = 0.45
     _SECOND_PASS_MAX_IMAGE_BYTES = 2_400_000
@@ -147,13 +147,18 @@ class VisionProcessor:
         api_key = self._resolve_api_key()
         if not api_key:
             return self._error_payload(
-                warning="GROQ_API_KEY is missing. Vision analysis skipped.",
+                warning="GEMINI_API_KEY is missing. Vision analysis skipped.",
                 error="vision_api_key_missing",
                 source=source,
             )
 
-        data_uri = self._to_data_uri(image_bytes, mime_type)
-        first_pass = self._run_with_fallback_models(data_uri=data_uri, source=source, api_key=api_key)
+        encoded = self._to_base64(image_bytes)
+        first_pass = self._run_with_fallback_models(
+            encoded_image=encoded,
+            mime_type=mime_type,
+            source=source,
+            api_key=api_key,
+        )
         if self._has_payload_signal(first_pass):
             return first_pass
 
@@ -169,9 +174,9 @@ class VisionProcessor:
             image_bytes,
             mime_type,
         )
-        retry_data_uri = self._to_data_uri(retry_bytes, retry_mime)
         second_pass = self._run_with_fallback_models(
-            data_uri=retry_data_uri,
+            encoded_image=self._to_base64(retry_bytes),
+            mime_type=retry_mime,
             source=source,
             api_key=api_key,
         )
@@ -193,12 +198,10 @@ class VisionProcessor:
 
             self._api_key_hydration_attempted = True
 
-            # Fallback to project-root .env to handle long-lived runtimes that were
-            # started before environment variables were fully populated.
             env_path = Path(__file__).resolve().parents[2] / ".env"
             load_env_file(str(env_path))
 
-            hydrated = str(os.getenv("GROQ_API_KEY") or "").strip()
+            hydrated = str(os.getenv("GEMINI_API_KEY") or "").strip()
             if hydrated:
                 self._runtime_api_key = hydrated
             return self._runtime_api_key
@@ -258,7 +261,6 @@ class VisionProcessor:
         if not candidate:
             return ""
 
-        # OpenRouter-style suffixes like ":free" are invalid for Groq endpoint.
         if ":" in candidate:
             candidate = candidate.split(":", 1)[0].strip()
 
@@ -269,8 +271,8 @@ class VisionProcessor:
 
         raw_primary = str(config.primary_model or "").strip()
         normalized_primary = self._normalize_model_id(raw_primary)
-        if not normalized_primary or ":free" in raw_primary.lower():
-            normalized_primary = _DEFAULT_GROQ_VISION_MODEL
+        if not normalized_primary:
+            normalized_primary = _DEFAULT_GEMINI_VISION_MODEL
 
         chain.append(normalized_primary)
 
@@ -278,16 +280,20 @@ class VisionProcessor:
             raw = str(item or "").strip()
             if not raw:
                 continue
-            if ":free" in raw.lower():
-                # Ignore OpenRouter-only free routing tags on Groq endpoint.
-                continue
             normalized = self._normalize_model_id(raw)
             if normalized and normalized not in chain:
                 chain.append(normalized)
 
         return chain
 
-    def _run_with_fallback_models(self, *, data_uri: str, source: str, api_key: str) -> dict[str, Any]:
+    def _run_with_fallback_models(
+        self,
+        *,
+        encoded_image: str,
+        mime_type: str,
+        source: str,
+        api_key: str,
+    ) -> dict[str, Any]:
         model_chain = list(self._model_chain)
         attempted_models: list[str] = []
         last_error = ""
@@ -300,7 +306,8 @@ class VisionProcessor:
                 total_attempts += 1
                 raw_text, status_code, error_text = self._call_model(
                     model=model,
-                    data_uri=data_uri,
+                    encoded_image=encoded_image,
+                    mime_type=mime_type,
                     api_key=api_key,
                 )
                 if raw_text:
@@ -327,7 +334,6 @@ class VisionProcessor:
                     time.sleep(wait_seconds)
                     continue
 
-                # Non-retryable status, switch model.
                 break
 
         if rate_limit_errors and rate_limit_errors >= total_attempts:
@@ -352,20 +358,38 @@ class VisionProcessor:
             attempted_models=attempted_models,
         )
 
-    def _call_model(self, *, model: str, data_uri: str, api_key: str) -> tuple[str, int, str]:
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
-
-        strict_payload = self._build_payload(model=model, data_uri=data_uri, strict_json=True)
-        raw_text, status_code, error_text = self._post_for_content(headers=headers, payload=strict_payload)
+    def _call_model(
+        self,
+        *,
+        model: str,
+        encoded_image: str,
+        mime_type: str,
+        api_key: str,
+    ) -> tuple[str, int, str]:
+        strict_payload = self._build_payload(
+            encoded_image=encoded_image,
+            mime_type=mime_type,
+            strict_json=True,
+        )
+        raw_text, status_code, error_text = self._post_for_content(
+            model=model,
+            api_key=api_key,
+            payload=strict_payload,
+        )
         if raw_text:
             return raw_text, status_code, error_text
 
         if status_code == 400:
-            compat_payload = self._build_payload(model=model, data_uri=data_uri, strict_json=False)
-            compat_raw, compat_status, compat_error = self._post_for_content(headers=headers, payload=compat_payload)
+            compat_payload = self._build_payload(
+                encoded_image=encoded_image,
+                mime_type=mime_type,
+                strict_json=False,
+            )
+            compat_raw, compat_status, compat_error = self._post_for_content(
+                model=model,
+                api_key=api_key,
+                payload=compat_payload,
+            )
             if compat_raw:
                 warning = "vision_compat_payload_recovered_after_http_400"
                 return compat_raw, compat_status, warning
@@ -373,40 +397,40 @@ class VisionProcessor:
 
         return "", status_code, error_text
 
-    def _build_payload(self, *, model: str, data_uri: str, strict_json: bool) -> dict[str, Any]:
+    def _build_payload(self, *, encoded_image: str, mime_type: str, strict_json: bool) -> dict[str, Any]:
         instruction = "You are a strict JSON generator. " + _VISION_PROMPT
-        payload = {
-            "model": model,
-            "temperature": 0,
-            "max_tokens": 900 if strict_json else 700,
-            "messages": [
+        payload: dict[str, Any] = {
+            "contents": [
                 {
                     "role": "user",
-                    "content": [
+                    "parts": [
+                        {"text": instruction},
                         {
-                            "type": "text",
-                            "text": instruction,
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": data_uri},
+                            "inlineData": {
+                                "mimeType": mime_type,
+                                "data": encoded_image,
+                            }
                         },
                     ],
-                },
+                }
             ],
+            "generationConfig": {
+                "temperature": 0,
+                "maxOutputTokens": 900 if strict_json else 700,
+            },
         }
 
         if strict_json:
-            payload["response_format"] = {"type": "json_object"}
+            payload["generationConfig"]["responseMimeType"] = "application/json"
 
         return payload
 
-    def _post_for_content(self, *, headers: dict[str, str], payload: dict[str, Any]) -> tuple[str, int, str]:
-
+    def _post_for_content(self, *, model: str, api_key: str, payload: dict[str, Any]) -> tuple[str, int, str]:
         try:
             response = self._get_session().post(
-                self._config.api_url,
-                headers=headers,
+                self._config.api_url.format(model=model),
+                params={"key": api_key},
+                headers={"Content-Type": "application/json"},
                 json=payload,
                 timeout=self._config.timeout_seconds,
             )
@@ -539,9 +563,8 @@ class VisionProcessor:
         return extract_message_content(data)
 
     @staticmethod
-    def _to_data_uri(image_bytes: bytes, mime_type: str) -> str:
-        encoded = base64.b64encode(image_bytes).decode("ascii")
-        return f"data:{mime_type};base64,{encoded}"
+    def _to_base64(image_bytes: bytes) -> str:
+        return base64.b64encode(image_bytes).decode("ascii")
 
     @staticmethod
     def _clean_json_text(raw: str) -> str:

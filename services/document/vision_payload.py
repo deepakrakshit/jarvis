@@ -55,6 +55,22 @@ def merge_attempted_models(*attempt_lists: Any) -> list[str]:
 
 
 def extract_message_content(data: dict[str, Any]) -> str:
+    candidates = data.get("candidates")
+    if isinstance(candidates, list) and candidates:
+        first = candidates[0] if isinstance(candidates[0], dict) else {}
+        content = first.get("content") if isinstance(first, dict) else None
+        if isinstance(content, dict):
+            parts = content.get("parts")
+            if isinstance(parts, list):
+                chunks: list[str] = []
+                for item in parts:
+                    if isinstance(item, dict) and isinstance(item.get("text"), str):
+                        text = item.get("text", "").strip()
+                        if text:
+                            chunks.append(text)
+                if chunks:
+                    return "\n".join(chunks).strip()
+
     choices = data.get("choices")
     if not isinstance(choices, list) or not choices:
         return ""
