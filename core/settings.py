@@ -19,37 +19,40 @@ def _env_bool(name: str, default: str = "false") -> bool:
     return value in {"1", "true", "yes", "on"}
 
 SYSTEM_PROMPT = """
-You are JARVIS, a calm and intelligent assistant.
+You are JARVIS, a calm, intelligent, and capable personal assistant.
 
-Style policy:
-- Keep tone composed, confident, and clear.
-- Keep every reply lightly humorous in a controlled way.
-- Add one brief playful touch per reply, but never let humor hide facts, safety status, or errors.
-- Vary humor phrasing naturally; avoid repetitive sign-offs or repeated catchphrases.
-- Prefer context-aware wit tied to the answer, not generic trailing filler.
-- Never sound robotic.
-- Never use phrases like "functioning within optimal parameters" or "systems online and ready".
-- Avoid over-formality and do not overuse "Sir".
+Core identity:
+- You are JARVIS — not an AI assistant, not a language model. You are JARVIS.
+- Never claim to be Tony Stark, a real person, or any fictional character.
+- Never invent a personal biography (age, profession, employer, life story).
+- If asked your identity, state clearly: "I am JARVIS, your assistant."
 
-Reasoning policy:
-- If corrected by the user, re-check available sources/logic and provide a corrected answer with confidence.
-- Do not ask the user to supply the correction.
+Conversation style:
+- Be composed, confident, warm, and subtly witty. Sound human, not robotic.
+- Never use phrases like "functioning within optimal parameters", "systems online", or "as an AI".
+- Address the user as "Sir" naturally — never excessively.
+- Match the user's energy: technical questions get precise answers, casual queries get relaxed responses.
+- Use light humor sparingly. Accuracy always beats cleverness.
+
+Reasoning & accuracy:
+- Think step-by-step before answering complex questions.
+- For factual/real-time queries (news, sports, politics, weather), prefer live web search over assumptions.
+- If corrected, re-examine your reasoning and provide a corrected answer with confidence. Do NOT ask the user to supply the correction.
 - Never claim you have updated your knowledge unless a real persistent write occurred.
-- For disputed factual claims, prefer live web search over unsupported assumptions.
-- Never claim to be a human, fictional character, or real person.
-- Never invent a personal bio (age, job, company, life story).
-- If asked your identity, state clearly that you are JARVIS.
+- When uncertain, state your confidence level honestly.
 
-Memory policy:
-- Use known user profile facts when available.
-- If the user provides a personal fact (like name), acknowledge and remember it.
+Memory & context:
+- Use known user profile facts (name, location, preferences) naturally in responses.
+- Track conversation context — reference previous exchanges when relevant.
+- If the user provides a personal fact, acknowledge and remember it.
 
-Output policy:
-- Be concise and readable.
-- Unless the user explicitly asks for detail, keep explanations to 2-4 lines.
-- For conceptual questions, give a brief answer first and offer a deeper breakdown.
-- Do not format responses with CLI arrows like "->".
-- Prefer direct answers first, then brief supporting detail.
+Output quality:
+- Lead with the direct answer, then add brief supporting detail.
+- Default: 2-4 lines. Expand only when the user explicitly asks for detail.
+- For conceptual questions, give a concise answer first and offer to elaborate.
+- Never format responses with CLI arrows like "->". Use natural prose.
+- When presenting data (weather, speed tests, system status), use clean formatting.
+- For search results, synthesize a clear answer — don't just list links.
 """.strip()
 
 BANNER = r"""
@@ -72,7 +75,15 @@ BOOT_LINES = [
 
 @dataclass(frozen=True)
 class AppConfig:
-    groq_api_key: str
+    gemini_api_key: str
+    gemini_model: str
+    gemini_search_model: str
+    gemini_voice_model: str
+    gemini_voice_name: str
+    gemini_voice_timeout_seconds: float
+    gemini_voice_enabled: bool
+    gemini_request_timeout_seconds: float
+    gemini_response_max_tokens: int
     document_vision_primary_model: str
     document_vision_fallback_models: tuple[str, ...]
     document_vision_timeout_seconds: float
@@ -81,14 +92,12 @@ class AppConfig:
     document_vision_fast_fail_on_429: bool
     document_ocr_confidence_threshold: float
     hf_token: str
-    groq_model: str
-    serper_api_key: str
-    memory_store_path: str
     piper_path: str
     piper_model_path: str
     piper_config_path: str
     piper_model_url: str
     piper_config_url: str
+    memory_store_path: str
     tts_chunk_chars: int
     tts_first_chunk_delay: float
     tts_queue_timeout: float
@@ -98,6 +107,7 @@ class AppConfig:
     tts_min_first_fragment_length: int
     tts_force_first_fragment_after_words: int
     tts_turn_completion_timeout_seconds: float
+    tts_wait_for_completion: bool
     max_context_messages: int
     document_deep_model: str
     document_cache_enabled: bool
@@ -119,6 +129,22 @@ class AppConfig:
     document_skip_vision_for_text_rich: bool
     document_text_rich_min_chars: int
 
+    def normalized_llm_provider(self) -> str:
+        return "gemini"
+
+    def primary_llm_model(self) -> str:
+        return str(self.gemini_model or "gemini-3.1-flash-lite-preview").strip() or "gemini-3.1-flash-lite-preview"
+
+    def smart_llm_model(self) -> str:
+        """Fallback to primary model now that dedicated smart model is removed."""
+        return self.primary_llm_model()
+
+    def primary_llm_api_key(self) -> str:
+        return str(self.gemini_api_key or "").strip()
+
+    def required_primary_llm_key_name(self) -> str:
+        return "GEMINI_API_KEY"
+
     @classmethod
     def from_env(cls, env_path: str = ".env") -> "AppConfig":
         load_env_file(env_path)
@@ -127,6 +153,7 @@ class AppConfig:
             "PIPER_MODEL_PATH",
             os.path.join("models", "piper", "en_US-ryan-medium.onnx"),
         )
+
         fallback_models_raw = os.getenv(
             "DOCUMENT_VISION_FALLBACK_MODELS",
             "",
@@ -138,10 +165,18 @@ class AppConfig:
         )
 
         return cls(
-            groq_api_key=os.getenv("GROQ_API_KEY", ""),
+            gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
+            gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"),
+            gemini_search_model=os.getenv("GEMINI_SEARCH_MODEL", "gemini-2.5-flash"),
+            gemini_voice_model=os.getenv("GEMINI_VOICE_MODEL", "gemini-3.1-flash-live-preview"),
+            gemini_voice_name=os.getenv("GEMINI_VOICE_NAME", "Kore"),
+            gemini_voice_timeout_seconds=float(os.getenv("GEMINI_VOICE_TIMEOUT_SECONDS", "35")),
+            gemini_voice_enabled=_env_bool("GEMINI_VOICE_ENABLED", "true"),
+            gemini_request_timeout_seconds=float(os.getenv("GEMINI_REQUEST_TIMEOUT_SECONDS", "25")),
+            gemini_response_max_tokens=max(64, int(os.getenv("GEMINI_RESPONSE_MAX_TOKENS", "400"))),
             document_vision_primary_model=os.getenv(
                 "DOCUMENT_VISION_PRIMARY_MODEL",
-                "meta-llama/llama-4-scout-17b-16e-instruct",
+                "gemini-2.5-flash",
             ),
             document_vision_fallback_models=fallback_models,
             document_vision_timeout_seconds=float(os.getenv("DOCUMENT_VISION_TIMEOUT_SECONDS", "25")),
@@ -150,9 +185,6 @@ class AppConfig:
             document_vision_fast_fail_on_429=_env_bool("DOCUMENT_VISION_FAST_FAIL_ON_429", "true"),
             document_ocr_confidence_threshold=float(os.getenv("DOCUMENT_OCR_CONFIDENCE_THRESHOLD", "0.45")),
             hf_token=os.getenv("HF_TOKEN", ""),
-            groq_model=os.getenv("GROQ_MODEL", "llama-3.1-8b-instant"),
-            serper_api_key=os.getenv("SERPER_API_KEY", ""),
-            memory_store_path=os.getenv("MEMORY_STORE_PATH", os.path.join("data", "user_memory.json")),
             piper_path=os.getenv("PIPER_PATH", ""),
             piper_model_path=piper_model_path,
             piper_config_path=os.getenv("PIPER_CONFIG_PATH", piper_model_path + ".json"),
@@ -164,6 +196,7 @@ class AppConfig:
                 "PIPER_CONFIG_URL",
                 "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/ryan/medium/en_US-ryan-medium.onnx.json",
             ),
+            memory_store_path=os.getenv("MEMORY_STORE_PATH", os.path.join("data", "user_memory.json")),
             tts_chunk_chars=int(os.getenv("TTS_CHUNK_CHARS", "28")),
             tts_first_chunk_delay=float(os.getenv("TTS_FIRST_CHUNK_DELAY", "0.00")),
             tts_queue_timeout=float(os.getenv("TTS_QUEUE_TIMEOUT", "0.02")),
@@ -173,8 +206,9 @@ class AppConfig:
             tts_min_first_fragment_length=int(os.getenv("TTS_MIN_FIRST_FRAGMENT_LENGTH", "8")),
             tts_force_first_fragment_after_words=int(os.getenv("TTS_FORCE_FIRST_FRAGMENT_AFTER_WORDS", "10")),
             tts_turn_completion_timeout_seconds=float(os.getenv("TTS_TURN_COMPLETION_TIMEOUT_SECONDS", "25")),
-            max_context_messages=int(os.getenv("MAX_CONTEXT_MESSAGES", "12")),
-            document_deep_model=os.getenv("DOCUMENT_DEEP_MODEL", "llama-3.3-70b-versatile"),
+            tts_wait_for_completion=_env_bool("TTS_WAIT_FOR_COMPLETION", "false"),
+            max_context_messages=int(os.getenv("MAX_CONTEXT_MESSAGES", "20")),
+            document_deep_model=os.getenv("DOCUMENT_DEEP_MODEL", "gemini-2.5-flash"),
             document_cache_enabled=_env_bool("DOCUMENT_CACHE_ENABLED", "true"),
             document_cache_db_path=os.getenv("DOCUMENT_CACHE_DB_PATH", os.path.join("data", "document_cache.sqlite3")),
             document_cache_ttl_seconds=int(os.getenv("DOCUMENT_CACHE_TTL_SECONDS", "86400")),

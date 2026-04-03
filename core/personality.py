@@ -46,7 +46,7 @@ _CASUAL_MARKERS = (
 class PersonalityEngine:
     """Central response style policy for local assistant responses."""
 
-    def __init__(self, *, humor_engine: HumorEngine | None = None, controlled_humor: bool = True) -> None:
+    def __init__(self, *, humor_engine: HumorEngine | None = None, controlled_humor: bool = False) -> None:
         self._humor = humor_engine or HumorEngine()
         self._controlled_humor = bool(controlled_humor)
 
