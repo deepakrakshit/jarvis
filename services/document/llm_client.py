@@ -1,4 +1,4 @@
-"""Lightweight Groq API client for document processing LLM calls.
+"""Lightweight Gemini client for document processing LLM calls.
 
 Provides retry logic, timeout handling, and structured JSON extraction.
 Used by the cleaner, chunk processor, and final intelligence stages.
@@ -8,16 +8,16 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 import time
 from typing import Any
 
 import requests
-from requests.adapters import HTTPAdapter
+
+from core.llm_api import chat_complete
+from core.settings import AppConfig
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 _MAX_RETRIES = 2
 _RETRY_BACKOFF_BASE = 1.5
 
@@ -28,34 +28,18 @@ class DocumentLLMClient:
     def __init__(
         self,
         *,
-        api_key: str,
-        fast_model: str = "llama-3.1-8b-instant",
-        deep_model: str = "llama-3.3-70b-versatile",
-        api_url: str = _DEFAULT_GROQ_URL,
+        config: AppConfig,
+        fast_model: str = "gemini-2.5-flash",
+        deep_model: str = "gemini-2.5-flash",
         timeout: float = 60.0,
     ) -> None:
-        self._api_key = api_key
+        self._config = config
         self._fast_model = fast_model
         self._deep_model = deep_model
-        self._api_url = api_url
         self._timeout = timeout
-        self._thread_local = threading.local()
 
-        if not self._api_key:
-            logger.warning("DocumentLLMClient initialized without an API key")
-
-    def _get_session(self) -> requests.Session:
-        """Get a thread-local requests session with keep-alive connection pooling."""
-        session = getattr(self._thread_local, "session", None)
-        if session is not None:
-            return session
-
-        session = requests.Session()
-        adapter = HTTPAdapter(pool_connections=8, pool_maxsize=16)
-        session.mount("https://", adapter)
-        session.mount("http://", adapter)
-        self._thread_local.session = session
-        return session
+        if not str(self._config.gemini_api_key or "").strip():
+            logger.warning("DocumentLLMClient initialized without GEMINI_API_KEY")
 
     def _make_request(
         self,
@@ -69,41 +53,25 @@ class DocumentLLMClient:
 
         Returns the assistant message content, or an empty string on failure.
         """
-        if not self._api_key:
-            logger.error("Cannot make LLM request: API key is missing")
+        if not str(self._config.gemini_api_key or "").strip():
+            logger.error("Cannot make LLM request: GEMINI_API_KEY is missing")
             return ""
-
-        headers = {
-            "Authorization": f"Bearer {self._api_key}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "stream": False,
-        }
 
         last_error: Exception | None = None
 
         for attempt in range(_MAX_RETRIES + 1):
             try:
-                response = self._get_session().post(
-                    self._api_url,
-                    headers=headers,
-                    json=payload,
+                content = chat_complete(
+                    self._config,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
                     timeout=self._timeout,
+                    model_override=model,
                 )
-                response.raise_for_status()
-                data = response.json()
-
-                choices = data.get("choices")
-                if isinstance(choices, list) and choices:
-                    message = choices[0].get("message", {})
-                    content = str(message.get("content") or "").strip()
-                    if content:
-                        return content
+                content = str(content or "").strip()
+                if content:
+                    return content
 
                 logger.warning("LLM returned empty content on attempt %d", attempt + 1)
                 return ""
@@ -111,17 +79,12 @@ class DocumentLLMClient:
             except requests.exceptions.HTTPError as exc:
                 last_error = exc
                 status = getattr(exc.response, "status_code", 0)
-                if status == 429:
+                if status in (429, 500, 502, 503, 504):
                     wait = _RETRY_BACKOFF_BASE ** (attempt + 1)
-                    logger.warning("Rate limited (429), retrying in %.1fs", wait)
+                    logger.warning("Gemini HTTP %d, retrying in %.1fs", status, wait)
                     time.sleep(wait)
                     continue
-                if status >= 500:
-                    wait = _RETRY_BACKOFF_BASE ** attempt
-                    logger.warning("Server error (%d), retrying in %.1fs", status, wait)
-                    time.sleep(wait)
-                    continue
-                logger.error("HTTP error %d from LLM API: %s", status, exc)
+                logger.error("HTTP error %d from Gemini API: %s", status, exc)
                 break
 
             except requests.exceptions.Timeout:
@@ -131,7 +94,7 @@ class DocumentLLMClient:
 
             except Exception as exc:
                 last_error = exc
-                logger.error("Unexpected error calling LLM API: %s", exc)
+                logger.error("Unexpected error calling Gemini API: %s", exc)
                 break
 
         if last_error:
@@ -146,7 +109,7 @@ class DocumentLLMClient:
         temperature: float = 0.2,
         max_tokens: int = 2048,
     ) -> str:
-        """Use the fast model (llama-3.1-8b) for cleaning and chunk processing."""
+        """Use the fast model for cleaning and chunk processing."""
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -166,7 +129,7 @@ class DocumentLLMClient:
         temperature: float = 0.3,
         max_tokens: int = 4096,
     ) -> str:
-        """Use the deep model (llama-3.3-70b) for final intelligence."""
+        """Use the deep model for final intelligence reasoning."""
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -218,13 +181,11 @@ class DocumentLLMClient:
         if not raw:
             return None
 
-        # Try direct parse first
         try:
             return json.loads(raw)
         except json.JSONDecodeError:
             pass
 
-        # Try extracting from markdown code fences
         import re
 
         fence_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?\s*```", raw, re.DOTALL)
@@ -234,7 +195,6 @@ class DocumentLLMClient:
             except json.JSONDecodeError:
                 pass
 
-        # Try finding first { or [ and matching to last } or ]
         for open_char, close_char in [("{", "}"), ("[", "]")]:
             start = raw.find(open_char)
             end = raw.rfind(close_char)

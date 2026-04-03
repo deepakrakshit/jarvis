@@ -43,10 +43,10 @@ class DocumentService:
 
     def __init__(self, config: AppConfig) -> None:
         self._config = config
-        self._fast_model = config.groq_model
-        self._deep_model = getattr(config, "document_deep_model", "llama-3.3-70b-versatile")
+        self._fast_model = config.primary_llm_model()
+        self._deep_model = getattr(config, "document_deep_model", "gemini-2.5-flash")
         self._llm_client = DocumentLLMClient(
-            api_key=config.groq_api_key,
+            config=config,
             fast_model=self._fast_model,
             deep_model=self._deep_model,
         )
@@ -95,7 +95,7 @@ class DocumentService:
         # Validate file
         validated_path, error = validate_file_path(file_path)
         if error:
-            logger.warning("Document validation failed: %s", error)
+            logger.info("Document validation failed: %s", error)
             return {
                 "success": False,
                 "error": error,
@@ -522,13 +522,13 @@ class DocumentService:
         risks = result.get("risks") if isinstance(result.get("risks"), list) else []
         normalized_risks = [str(item or "").strip().lower() for item in risks]
         if any(
-            "groq_api_key is missing" in item or "vision_http_429" in item
+            "gemini_api_key is missing" in item or "vision_http_429" in item
             for item in normalized_risks
         ):
             return False
 
         summary = str(result.get("summary") or "").strip().lower()
-        if "missing groq_api_key" in summary:
+        if "missing gemini_api_key" in summary:
             return False
 
         return True

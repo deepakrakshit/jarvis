@@ -1,7 +1,7 @@
 """Fusion processor for hybrid document intelligence.
 
 Combines text extraction, OCR output, and vision payloads into one
-structured object that is passed to final Groq reasoning.
+structured object that is passed to final LLM reasoning.
 """
 
 from __future__ import annotations

@@ -5,7 +5,7 @@ Flow:
 - Route image files directly through vision extraction
 - Route PDF/DOCX to parser, then run OCR and vision in parallel when needed
 - Fuse all modalities into a single structured object
-- Send fused object to Groq for final reasoning
+- Send fused object to Gemini for final reasoning
 """
 
 from __future__ import annotations
@@ -145,7 +145,7 @@ class DocumentPipeline:
         ).strip().lower() in {"1", "true", "yes", "on"}
 
         vision_config = VisionConfig(
-            api_key=config.groq_api_key,
+            api_key=config.gemini_api_key,
             primary_model=config.document_vision_primary_model,
             fallback_models=config.document_vision_fallback_models,
             timeout_seconds=float(config.document_vision_timeout_seconds),
