@@ -9,6 +9,7 @@ from services.search_service import SearchService
 from services.system.app_control import AppControlService
 from services.system.system_service import SystemControlService
 from services.weather_service import WeatherService
+from services.document.file_selector import validate_file_path
 
 try:
     from services.document.document_service import DocumentService
@@ -131,6 +132,48 @@ def build_default_tool_registry(
     app_control_service = AppControlService(memory_store=memory_store)
     system_control_service = SystemControlService()
 
+    def _structured_action_payload(*, action: str, result: Any, source: str) -> dict[str, Any]:
+        if isinstance(result, dict):
+            status = str(result.get("status") or "").strip().lower()
+            success = bool(result.get("success")) if "success" in result else status == "success"
+            verified = bool(result.get("verified")) if "verified" in result else False
+            message = str(result.get("message") or "").strip()
+            payload = {
+                "status": "success" if success else "error",
+                "action": str(action or "").strip().lower(),
+                "success": success,
+                "verified": verified,
+                "message": message or ("Action completed." if success else "Action failed."),
+                "error": str(result.get("error") or "").strip() if not success else "",
+                "state": result.get("state") if isinstance(result.get("state"), dict) else {},
+                "source": source,
+            }
+            return payload
+
+        message = str(result or "").strip()
+        lowered = message.lower()
+        failure_markers = (
+            "failed",
+            "error",
+            "could not",
+            "unable",
+            "unknown",
+            "not found",
+            "unavailable",
+            "missing",
+        )
+        success = bool(message) and not any(marker in lowered for marker in failure_markers)
+        return {
+            "status": "success" if success else "error",
+            "action": str(action or "").strip().lower(),
+            "success": success,
+            "verified": False,
+            "message": message or ("Action completed." if success else "Action failed."),
+            "error": "" if success else "execution_failed",
+            "state": {},
+            "source": source,
+        }
+
     def _normalize_location(value: str) -> str:
         cleaned = re.sub(r"\s+", " ", (value or "").strip())
         return cleaned.strip(" .,!?;:")
@@ -227,6 +270,151 @@ def build_default_tool_registry(
                 if key in args:
                     safe_params[key] = args.get(key)
         return system_control_service.control(action=action, params=safe_params)
+
+    def computer_control_tool(args: dict[str, Any]) -> Any:
+        try:
+            from services.actions.computer_control import computer_control
+        except Exception as exc:
+            return {
+                "status": "error",
+                "action": str(args.get("action") or "").strip().lower(),
+                "success": False,
+                "verified": False,
+                "error": "dependency_unavailable",
+                "message": f"computer_control unavailable: {exc}",
+                "state": {},
+            }
+
+        result = computer_control(args, response=None, player=None, session_memory=None)
+        return _structured_action_payload(
+            action=str(args.get("action") or "").strip().lower(),
+            result=result,
+            source="computer_control",
+        )
+
+    def computer_settings_tool(args: dict[str, Any]) -> Any:
+        action = str(args.get("action") or args.get("description") or "").strip().lower()
+        if not action:
+            return {
+                "status": "error",
+                "action": "",
+                "success": False,
+                "verified": False,
+                "error": "missing_action",
+                "message": "computer_settings requires an action or description.",
+                "state": {},
+            }
+
+        safe_params: dict[str, Any] = {}
+        params = args.get("params")
+        if isinstance(params, dict):
+            safe_params.update(params)
+
+        for key in ("step", "level", "app", "app_name", "value", "key", "text", "actions_in_request"):
+            if key in args and key not in safe_params:
+                safe_params[key] = args.get(key)
+
+        if "level" not in safe_params and "value" in safe_params:
+            try:
+                parsed = int(safe_params["value"])
+                safe_params["level"] = parsed
+            except Exception:
+                pass
+
+        if "step" not in safe_params and "value" in safe_params:
+            try:
+                parsed = int(safe_params["value"])
+                safe_params["step"] = parsed
+            except Exception:
+                pass
+
+        result = system_control_service.control(action=action, params=safe_params)
+        return _structured_action_payload(
+            action=action,
+            result=result,
+            source="computer_settings_alias",
+        )
+
+    def screen_process_tool(args: dict[str, Any]) -> Any:
+        try:
+            from services.actions.screen_processor import screen_process
+        except Exception as exc:
+            return {
+                "action": "screen_process",
+                "success": False,
+                "verified": False,
+                "status": "error",
+                "message": f"screen_process unavailable: {exc}",
+                "error": "dependency_unavailable",
+            }
+
+        result = screen_process(args, response=None, player=None, session_memory=None)
+        if isinstance(result, dict):
+            return result
+
+        ok = bool(result)
+        mode = str(args.get("angle") or "screen").strip().lower() or "screen"
+        text = str(args.get("text") or args.get("user_text") or "").strip()
+        return {
+            "status": "success" if ok else "error",
+            "action": "screen_process",
+            "success": ok,
+            "verified": ok,
+            "message": "Screen analysis request queued." if ok else "Could not queue screen analysis request.",
+            "error": "" if ok else "queue_failed",
+            "mode": mode,
+            "request": {
+                "action": str(args.get("action") or "analyze").strip().lower() or "analyze",
+                "text": text,
+            },
+            "analysis": {
+                "summary": "",
+                "objects": [],
+                "history": {},
+                "from_cache": False,
+                "latency_ms": 0,
+            },
+            "view": {
+                "available": False,
+                "image_path": "",
+            },
+            "live_session": {
+                "requested": True,
+                "queued": ok,
+                "session_ready": ok,
+                "model": "",
+                "enrichment": "queued" if ok else "unavailable",
+                "error": "" if ok else "queue_failed",
+            },
+        }
+
+    def memory_save_tool(args: dict[str, Any]) -> Any:
+        if memory_store is None:
+            return "Memory disabled."
+        key = str(args.get("key", "")).strip().lower()
+        value = str(args.get("value", "")).strip()
+        if key in ("user_name", "last_city"):
+            memory_store.set(key, value)
+            return {"success": True, "message": f"Saved {key}={value}"}
+        return {"success": False, "error": "Unknown memory key."}
+
+    registry.register(
+        ToolDefinition(
+            name="memory_save",
+            description="Save a persistent fact about the user (e.g. user_name, last_city).",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "key": {"type": "string", "description": "must be 'user_name' or 'last_city'"},
+                    "value": {"type": "string"}
+                },
+                "required": ["key", "value"],
+            },
+            fn=memory_save_tool,
+            timeout_seconds=5.0,
+            safe_to_parallelize=True,
+        )
+    )
 
     registry.register(
         ToolDefinition(
@@ -372,7 +560,89 @@ def build_default_tool_registry(
                 },
             },
             fn=system_control_tool,
-            timeout_seconds=20.0,
+            timeout_seconds=35.0,
+            safe_to_parallelize=False,
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="computer_control",
+            description=(
+                "Atomic desktop automation actions: type, click, scroll, hotkeys, clipboard, screenshots, "
+                "and optional AI-assisted screen-find coordinates."
+            ),
+            input_schema={
+                "type": "object",
+                "required": ["action"],
+                "properties": {
+                    "action": {"type": "string"},
+                    "goal": {"type": "string"},
+                    "text": {"type": "string"},
+                    "description": {"type": "string"},
+                    "x": {"type": "integer"},
+                    "y": {"type": "integer"},
+                    "amount": {"type": "integer"},
+                    "direction": {"type": "string"},
+                    "keys": {"type": "string"},
+                    "image": {"type": "string"},
+                    "field": {"type": "string"},
+                    "type": {"type": "string"},
+                    "browser": {"type": "string"},
+                    "url": {"type": "string"},
+                    "max_steps": {"type": "integer"},
+                    "safety_mode": {"type": "string"},
+                    "dry_run": {"type": "boolean"},
+                },
+            },
+            fn=computer_control_tool,
+            timeout_seconds=120.0,
+            safe_to_parallelize=False,
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="computer_settings",
+            description=(
+                "Compatibility alias for system control intents. "
+                "Canonical implementation lives in system_control."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string"},
+                    "description": {"type": "string"},
+                    "text": {"type": "string"},
+                    "key": {"type": "string"},
+                },
+            },
+            fn=computer_settings_tool,
+            timeout_seconds=35.0,
+            safe_to_parallelize=False,
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="screen_process",
+            description=(
+                "Capture and analyze screen/camera frames with structured output, frame memory, and object tracking. "
+                "Supports action='view_now' and action='view_latest' for on-demand visual recall."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string"},
+                    "user_text": {"type": "string"},
+                    "angle": {"type": "string"},
+                    "mode": {"type": "string"},
+                    "action": {"type": "string"},
+                    "live_enrichment": {"type": "boolean"},
+                },
+            },
+            fn=screen_process_tool,
+            timeout_seconds=45.0,
             safe_to_parallelize=False,
         )
     )
@@ -384,13 +654,35 @@ def build_default_tool_registry(
         def document_tool(args: dict[str, Any]) -> Any:
             file_path = str(args.get("file_path") or "").strip()
             query = str(args.get("query") or "").strip()
-            if not file_path:
+
+            has_active_documents = bool(getattr(_doc_service, "has_active_documents", lambda: False)())
+            active_markers = {
+                "__active_document__",
+                "__active__",
+                "active_document",
+                "active",
+                "current_document",
+            }
+
+            if not file_path or file_path.lower() in active_markers:
+                if has_active_documents:
+                    effective_query = query or "Summarize this document."
+                    return _doc_service.answer_question(effective_query)
                 return {
                     "success": False,
                     "error": "No file path provided. The system must select a file first.",
                     "requires_file": True,
                 }
-            return _doc_service.analyze(file_path, user_query=query)
+
+            validated_path, error = validate_file_path(file_path)
+            if error:
+                return {
+                    "success": False,
+                    "error": f"Invalid document path: {error}",
+                    "requires_file": True,
+                }
+
+            return _doc_service.analyze(validated_path, user_query=query)
 
         registry.register(
             ToolDefinition(

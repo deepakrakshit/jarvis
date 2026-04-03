@@ -5,9 +5,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-import requests
-
 from core.settings import AppConfig
+from core.llm_api import chat_complete
 from agent.tool_registry import ToolRegistry
 
 
@@ -25,31 +24,67 @@ class PlanDraft:
 
     plan: list[PlanStep]
     reasoning: str
+    is_complete: bool = False
 
 
 class Planner:
-    """Groq-backed planner that converts user intent into structured tool plans."""
+    """Provider-backed planner that converts user intent into structured tool plans."""
 
     def __init__(self, config: AppConfig, tool_registry: ToolRegistry) -> None:
         self.config = config
         self.tool_registry = tool_registry
+        self._conversation_history: list[dict[str, str]] = []
 
-    def plan(self, user_query: str, *, max_retries: int = 2) -> PlanDraft | None:
+    def plan(
+        self, 
+        user_query: str, 
+        *, 
+        max_retries: int = 2, 
+        conversation_history: list[dict[str, str]] | None = None,
+        execution_history: list[dict[str, Any]] | None = None,
+    ) -> PlanDraft | None:
         """Return a structured plan draft from model output.
 
         Returns None when parsing fails repeatedly.
         """
         if not (user_query or "").strip():
-            return PlanDraft(plan=[], reasoning="No executable user query provided.")
+            return PlanDraft(plan=[], reasoning="No executable user query provided.", is_complete=True)
+
+        if conversation_history is not None:
+            self._conversation_history = conversation_history
 
         system_prompt = self._build_system_prompt()
-        messages = [
+        messages: list[dict[str, str]] = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_query.strip()},
         ]
 
+        # Inject recent conversation context for multi-turn awareness.
+        for turn in self._conversation_history[-4:]:
+            role = turn.get("role", "")
+            content = turn.get("content", "")
+            if role in ("user", "assistant") and content.strip():
+                messages.append({"role": role, "content": content.strip()[:300]})
+
+        messages.append({"role": "user", "content": user_query.strip()})
+
+        if execution_history:
+            history_text = "PREVIOUS TOOL EXECUTIONS THIS TURN:\n"
+            for idx, item in enumerate(execution_history, 1):
+                tool = item.get("tool", "unknown")
+                args = item.get("args", {})
+                success = item.get("success", False)
+                error = item.get("error", "")
+                result = item.get("output", "")
+                history_text += f"{idx}. '{tool}' ({args}) -> Success: {success}\n"
+                if not success:
+                    history_text += f"   Error: {error}\n"
+                else:
+                    history_text += f"   Result: {str(result)[:200]}...\n"
+            history_text += "\nDevise the NEXT steps to satisfy the user query based on the above results. Do NOT repeat failed steps."
+            messages.append({"role": "user", "content": history_text})
+
         for _attempt in range(max_retries + 1):
-            raw = self._call_groq(messages)
+            raw = self._call_model(messages)
             payload = self._parse_json_payload(raw)
             if payload is None:
                 continue
@@ -63,62 +98,88 @@ class Planner:
     def _build_system_prompt(self) -> str:
         tools_json = json.dumps(self.tool_registry.describe_for_planner(), ensure_ascii=True, indent=2)
         return (
-            "You are a deterministic planning engine.\n"
-            "Your only job is to produce a tool execution plan in strict JSON.\n"
-            "Never answer the user directly. Never add explanations outside JSON.\n"
-            "Use internal reasoning to choose the smallest correct plan.\n"
-            "Optimization rules:\n"
-            "1) Minimize total tool calls.\n"
-            "2) Combine related asks into one plan when possible.\n"
-            "3) Avoid redundant repeated tools with identical args.\n"
-            "4) Prefer parallel-safe tools together when independent.\n"
-            "App control rule: for app_control use args.action as 'open' or 'close'.\n"
-            "For close pronoun requests (e.g., close it), set args.app_name to 'it'.\n"
-            "File manager rule: 'open file explorer' or 'open file manager' means app_control open for explorer.\n"
-            "Document picker rule: only 'open file picker' or 'open document selector' means document selection workflow.\n"
-            "System control rule: use system_control for OS controls (volume, brightness, window focus/minimize/restore/close, desktop show/minimize/restore, lock screen).\n"
-            "System control shape: tool='system_control' with args {action: '<action_name>', params: {...}}.\n"
-            "Use canonical action names only: increase_volume, decrease_volume, set_volume, mute, unmute, increase_brightness, decrease_brightness, set_brightness, switch_window, minimize_window, restore_window, focus_window, close_window, minimize_all_windows, restore_all_windows, show_desktop, restore_specific, lock_screen.\n"
-            "Do not use app_control for volume/brightness/window/desktop/system actions.\n"
-            "Safety rule: never plan shutdown/restart/delete/command-execution actions.\n"
-            "Weather rule: every weather step must include args.location explicitly.\n"
-            "If user gives city, pass that city in args.location. If user asks 'here', pass location='here'.\n"
-            "Never fabricate live data. If user forbids tools for live data, return empty plan with reasoning.\n"
-            "If no tool is applicable, return {\"plan\": [], \"reasoning\": \"No tools required.\"}.\n"
-            "Use ONLY tools listed below and match argument schema exactly.\n"
-            "Return JSON object with exactly these top-level keys: plan, reasoning.\n"
-            "Each plan item must be: {\"tool\": \"tool_name\", \"args\": { ... }}\n"
-            "reasoning must be 1-2 concise lines and must not exceed 240 characters.\n"
-            "Tools:\n"
+            "# Role\n"
+            "You are an autonomous Re-Act planner for a desktop assistant.\n"
+            "Your ONLY job: convert the user's request into a tool execution plan as strict JSON, considering past execution history if resolving multi-step problems.\n\n"
+            "# Output Format\n"
+            "Return a JSON object with exactly: {\"plan\": [...], \"reasoning\": \"...\", \"is_complete\": bool}\n"
+            "- \"is_complete\": true IF no more tools are needed to answer the user fully, else false.\n"
+            "- \"plan\": array of {\"tool\": \"tool_name\", \"args\": {...}}\n"
+            "- If no tool applies: {\"plan\": [], \"reasoning\": \"No tools required.\", \"is_complete\": true}\n\n"
+            "# Planning Rules\n"
+            "1. If previous tools failed according to execution history, alter your strategy or update arguments.\n"
+            "2. Never answer the user directly. Never add text outside JSON.\n"
+            "3. Use ONLY the tools listed below \u2014 match argument schemas exactly.\n"
+            "4. Never plan shutdown, restart, delete, or command-execution actions.\n"
+            "5. Never fabricate live data. If user forbids tools, return empty plan.\n\n"
+            "# Tool Selection Guide\n"
+            "- Weather/temperature/forecast \u2192 weather (ALWAYS include args.location)\n"
+            "- Factual questions, news, 'who won', current events \u2192 internet_search\n"
+            "- Open/close/launch/terminate apps \u2192 app_control (action='open'/'close')\n"
+            "- Volume/brightness/mute/window/desktop/lock/media keys \u2192 system_control\n"
+            "- Browser navigation, open URL, YouTube search, UI clicks \u2192 computer_control\n"
+            "- Screen/camera understanding, 'view my screen', 'what is on my screen' \u2192 screen_process\n"
+            "- 'Open file explorer' \u2192 app_control (NOT system_control)\n"
+            "- Speed test \u2192 speedtest\n"
+            "- IP/location queries \u2192 public_ip or network_location\n"
+            "- System status/CPU/RAM \u2192 system_status\n"
+            "- Time/date queries \u2192 temporal\n"
+            "- Document analysis \u2192 document\n"
+            "- 'Close it' with no app name \u2192 app_control with app_name='it'\n\n"
+            "# System Control Canonical Actions\n"
+            "increase_volume, decrease_volume, set_volume, mute, unmute, "
+            "increase_brightness, decrease_brightness, set_brightness, "
+            "switch_window, minimize_window, maximize_window, restore_window, "
+            "focus_window, close_window, minimize_all_windows, restore_all_windows, "
+            "show_desktop, lock_screen, media_play_pause, media_next_track, "
+            "media_previous_track, media_stop, new_tab, close_tab, next_tab, "
+            "previous_tab, refresh_page, go_back, go_forward, "
+            "zoom_in, zoom_out, zoom_reset, copy, paste, cut, undo, redo, save, find\n\n"
+            "# Few-Shot Examples\n\n"
+            "User: \"what's the weather in Tokyo\"\n"
+            '{\"plan\": [{\"tool\": \"weather\", \"args\": {\"location\": \"Tokyo\", \"query\": \"what\'s the weather in Tokyo\"}}], '
+            '\"reasoning\": \"Weather query for specific city.\"}\n\n'
+            "User: \"who won the FIFA World Cup 2022\"\n"
+            '{\"plan\": [{\"tool\": \"internet_search\", \"args\": {\"query\": \"who won FIFA World Cup 2022\"}}], '
+            '\"reasoning\": \"Factual question requiring web search.\"}\n\n'
+            "User: \"open chrome\"\n"
+            '{\"plan\": [{\"tool\": \"app_control\", \"args\": {\"action\": \"open\", \"app_name\": \"chrome\"}}], '
+            '\"reasoning\": \"App launch request.\"}\n\n'
+            "User: \"set volume to 70\"\n"
+            '{\"plan\": [{\"tool\": \"system_control\", \"args\": {\"action\": \"set_volume\", \"params\": {\"level\": 70}}}], '
+            '\"reasoning\": \"Direct volume control.\"}\n\n'
+            "User: \"search for cat videos on YouTube\"\n"
+            '{\"plan\": [{\"tool\": \"computer_control\", \"args\": {\"action\": \"autonomous_task\", \"goal\": \"search for cat videos on YouTube\", \"max_steps\": 14, \"safety_mode\": \"strict\"}}], '
+            '\"reasoning\": \"Browser automation for YouTube search.\"}\n\n'
+            "User: \"what is on my screen right now\"\n"
+            '{\"plan\": [{\"tool\": \"screen_process\", \"args\": {\"action\": \"view_now\", \"angle\": \"screen\", \"text\": \"what is on my screen right now\"}}], '
+            '\"reasoning\": \"Immediate screen understanding request.\"}\n\n'
+            "User: \"close it\"\n"
+            '{\"plan\": [{\"tool\": \"app_control\", \"args\": {\"action\": \"close\", \"app_name\": \"it\"}}], '
+            '\"reasoning\": \"Close last opened app via pronoun resolution.\"}\n\n'
+            "User: \"what is my IP address\"\n"
+            '{\"plan\": [{\"tool\": \"public_ip\", \"args\": {}}], '
+            '\"reasoning\": \"IP address lookup.\"}\n\n'
+            "User: \"run a speed test\"\n"
+            '{\"plan\": [{\"tool\": \"speedtest\", \"args\": {}}], '
+            '\"reasoning\": \"Internet speed test requested.\"}\n\n'
+            "User: \"how are you\"\n"
+            '{\"plan\": [], \"reasoning\": \"No tools required \u2014 conversational greeting.\"}\n\n'
+            "User: \"weather in Delhi and also check my IP\"\n"
+            '{\"plan\": [{\"tool\": \"weather\", \"args\": {\"location\": \"Delhi\", \"query\": \"weather in Delhi\"}}, {\"tool\": \"public_ip\", \"args\": {}}], '
+            '\"reasoning\": \"Two independent requests \u2014 weather and IP lookup.\"}\n\n'
+            "# Available Tools\n"
             f"{tools_json}"
         )
 
-    def _call_groq(self, messages: list[dict[str, str]]) -> str:
-        response = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {self.config.groq_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": self.config.groq_model,
-                "messages": messages,
-                "temperature": 0,
-                "stream": False,
-                "response_format": {"type": "json_object"},
-            },
+    def _call_model(self, messages: list[dict[str, str]]) -> str:
+        return chat_complete(
+            self.config,
+            messages=messages,
+            temperature=0.05,
             timeout=35,
+            response_format_json=True,
         )
-        response.raise_for_status()
-        payload = response.json()
-        choices = payload.get("choices") if isinstance(payload, dict) else None
-        if not isinstance(choices, list) or not choices:
-            return ""
-
-        first = choices[0] if isinstance(choices[0], dict) else {}
-        message = first.get("message") if isinstance(first, dict) else {}
-        content = message.get("content") if isinstance(message, dict) else ""
-        return str(content or "")
 
     @staticmethod
     def _extract_first_json_object(raw: str) -> str | None:
@@ -158,27 +219,30 @@ class Planner:
         if not isinstance(candidate, list):
             return None
 
-        reasoning = str(payload.get("reasoning") or "").strip()
-        if not reasoning:
+        try:
+            steps: list[PlanStep] = []
+            for item in payload.get("plan", []):
+                tool = str(item.get("tool") or "").strip()
+                if not tool:
+                    continue
+                args = item.get("args")
+                if args is None:
+                    args = {}
+                elif not isinstance(args, dict):
+                    continue
+                steps.append(PlanStep(tool=tool, args=args))
+
+            steps = self._remove_duplicate_steps(steps)
+            reasoning = str(payload.get("reasoning") or "").strip()
+            is_complete = bool(payload.get("is_complete", False))
+            
+            # Auto-complete if plan is empty
+            if not steps:
+                is_complete = True
+                
+            return PlanDraft(plan=steps, reasoning=reasoning, is_complete=is_complete)
+        except Exception:
             return None
-
-        if len(reasoning) > 240:
-            reasoning = reasoning[:240].rstrip()
-
-        parsed: list[PlanStep] = []
-        for item in candidate:
-            if not isinstance(item, dict):
-                return None
-
-            tool = str(item.get("tool") or "").strip()
-            args = item.get("args", {})
-            if not tool or not isinstance(args, dict):
-                return None
-
-            parsed.append(PlanStep(tool=tool, args=args))
-
-        normalized = self._remove_duplicate_steps(parsed)
-        return PlanDraft(plan=normalized, reasoning=reasoning)
 
     @staticmethod
     def _remove_duplicate_steps(plan: list[PlanStep]) -> list[PlanStep]:

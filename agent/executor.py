@@ -24,6 +24,8 @@ class ExecutionRecord:
     output: Any
     error: str
     duration_ms: int
+    confidence: str
+    attempts: int
 
 
 class ToolExecutor:
@@ -61,6 +63,130 @@ class ToolExecutor:
 
         return True
 
+    @staticmethod
+    def _error_text_from_output(output: Any) -> str:
+        if isinstance(output, dict):
+            for key in ("error", "reason", "message"):
+                value = str(output.get(key) or "").strip()
+                if value:
+                    return value
+            return ""
+        if isinstance(output, str):
+            return output.strip()
+        return ""
+
+    @staticmethod
+    def _looks_like_failure_text(text: str) -> bool:
+        lowered = (text or "").strip().lower()
+        if not lowered:
+            return False
+        markers = (
+            "could not",
+            "unable",
+            "failed",
+            "error",
+            "unavailable",
+            "missing",
+            "timeout",
+            "timed out",
+            "not found",
+            "blocked",
+        )
+        return any(marker in lowered for marker in markers)
+
+    def _infer_success_and_error(self, tool_name: str, output: Any) -> tuple[bool, str]:
+        if isinstance(output, dict):
+            if isinstance(output.get("success"), bool):
+                ok = bool(output.get("success"))
+                return ok, "" if ok else self._error_text_from_output(output)
+
+            status = str(output.get("status") or "").strip().lower()
+            if status in {"error", "failed", "blocked"}:
+                return False, self._error_text_from_output(output) or status
+            if status == "success":
+                return True, ""
+
+            if tool_name == "internet_search":
+                results = output.get("results")
+                if isinstance(results, list) and results:
+                    return True, ""
+                return False, self._error_text_from_output(output) or "search_no_results"
+
+            if tool_name == "public_ip":
+                ip = str(output.get("ip") or "").strip()
+                if ip:
+                    return True, ""
+                return False, self._error_text_from_output(output) or "public_ip_unavailable"
+
+            error_text = self._error_text_from_output(output)
+            if error_text and self._looks_like_failure_text(error_text):
+                return False, error_text
+            return True, ""
+
+        if isinstance(output, str):
+            text = output.strip()
+            if not text:
+                return False, "empty_output"
+            if self._looks_like_failure_text(text):
+                return False, text
+            return True, ""
+
+        if output is None:
+            return False, "empty_output"
+
+        return True, ""
+
+    @staticmethod
+    def _is_retryable_error_text(error_text: str) -> bool:
+        lowered = (error_text or "").strip().lower()
+        if not lowered:
+            return False
+        retryable = (
+            "timeout",
+            "timed out",
+            "temporar",
+            "connection",
+            "network",
+            "rate limit",
+            "429",
+            "5xx",
+            "service unavailable",
+            "try again",
+        )
+        return any(token in lowered for token in retryable)
+
+    @staticmethod
+    def _tool_confidence(tool_name: str, output: Any, *, success: bool, attempts: int, validated: bool) -> str:
+        if not success:
+            return "low"
+
+        confidence = "high" if validated else "medium"
+
+        if tool_name in {"app_control", "system_control", "computer_control", "computer_settings"} and isinstance(output, dict):
+            verified = bool(output.get("verified"))
+            confidence = "high" if verified else "medium"
+
+        if tool_name == "internet_search" and isinstance(output, dict):
+            results = output.get("results")
+            if isinstance(results, list):
+                trusted_count = sum(1 for item in results if isinstance(item, dict) and bool(item.get("trusted")))
+                if len(results) >= 3 and trusted_count >= 1:
+                    confidence = "high"
+                elif len(results) >= 1:
+                    confidence = "medium"
+                else:
+                    confidence = "low"
+
+        if tool_name == "weather" and isinstance(output, dict):
+            has_temp = isinstance(output.get("temperature_c"), (int, float)) and not isinstance(output.get("temperature_c"), bool)
+            has_tool_location = bool(str(output.get("tool_location") or output.get("tool_location_label") or "").strip())
+            confidence = "high" if (has_temp and has_tool_location) else "medium"
+
+        if attempts > 1 and confidence == "high":
+            confidence = "medium"
+
+        return confidence
+
     def _execute_sequential(self, plan: list[PlanStep]) -> dict[str, dict[str, Any]]:
         output: dict[str, dict[str, Any]] = {}
         seen: dict[str, int] = {}
@@ -93,6 +219,8 @@ class ToolExecutor:
                 output=None,
                 error="Invalid planner arguments: args must be an object",
                 duration_ms=0,
+                confidence="low",
+                attempts=0,
             )
             return key, self._to_payload(record)
 
@@ -105,6 +233,8 @@ class ToolExecutor:
                 output=None,
                 error="Unknown tool",
                 duration_ms=0,
+                confidence="low",
+                attempts=0,
             )
             return key, self._to_payload(record)
 
@@ -112,14 +242,18 @@ class ToolExecutor:
         attempt_args = dict(step.args)
         last_error = ""
         last_output: Any = None
+        attempts_used = 0
 
         for attempt in (1, 2):
+            attempts_used = attempt
             try:
                 result = await asyncio.wait_for(
                     asyncio.to_thread(definition.fn, attempt_args),
                     timeout=definition.timeout_seconds,
                 )
                 last_output = result
+
+                validated = False
 
                 if self.output_validator is not None:
                     validation = self.output_validator.validate_tool_output(step.tool, attempt_args, result)
@@ -138,16 +272,52 @@ class ToolExecutor:
                             output=last_output,
                             error=validation.reason,
                             duration_ms=int((time.perf_counter() - started_total) * 1000),
+                            confidence="low",
+                            attempts=attempts_used,
                         )
                         return key, self._to_payload(record)
+                    validated = True
+
+                inferred_success, inferred_error = self._infer_success_and_error(step.tool, result)
+                if not inferred_success:
+                    last_error = inferred_error or "tool_reported_failure"
+                    if attempt == 1 and self._is_retryable_error_text(last_error):
+                        logger.warning("Tool '%s' reported transient failure (%s); retrying once", step.tool, last_error)
+                        continue
+
+                    record = ExecutionRecord(
+                        tool=step.tool,
+                        args=attempt_args,
+                        success=False,
+                        output=result,
+                        error=last_error,
+                        duration_ms=int((time.perf_counter() - started_total) * 1000),
+                        confidence=self._tool_confidence(
+                            step.tool,
+                            result,
+                            success=False,
+                            attempts=attempts_used,
+                            validated=validated,
+                        ),
+                        attempts=attempts_used,
+                    )
+                    return key, self._to_payload(record)
 
                 record = ExecutionRecord(
                     tool=step.tool,
                     args=attempt_args,
-                    success=True,
+                    success=inferred_success,
                     output=result,
                     error="",
                     duration_ms=int((time.perf_counter() - started_total) * 1000),
+                    confidence=self._tool_confidence(
+                        step.tool,
+                        result,
+                        success=inferred_success,
+                        attempts=attempts_used,
+                        validated=validated,
+                    ),
+                    attempts=attempts_used,
                 )
                 return key, self._to_payload(record)
             except asyncio.TimeoutError:
@@ -169,6 +339,8 @@ class ToolExecutor:
             output=last_output,
             error=last_error or "tool_failed_after_retry",
             duration_ms=int((time.perf_counter() - started_total) * 1000),
+            confidence="low",
+            attempts=attempts_used,
         )
         return key, self._to_payload(record)
 
@@ -196,6 +368,8 @@ class ToolExecutor:
             "output": record.output,
             "error": record.error,
             "duration_ms": record.duration_ms,
+            "confidence": record.confidence,
+            "attempts": record.attempts,
         }
 
     @staticmethod
