@@ -1,3 +1,30 @@
+# ==============================================================================
+# File: voice/tts.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Piper Text-to-Speech Engine — Turn-Based Voice Synthesis
+#
+#    - Turn-based TTS engine using Piper via the RealtimeTTS library.
+#    - Automatic voice model download from HuggingFace with auth token support.
+#    - Turn management: interrupt() increments turn ID, clears speech queue,
+#      stops active playback. Old-turn chunks are silently dropped.
+#    - AdaptivePiperEngine: custom subclass wrapping piper.exe shell execution,
+#      WAV output reading, and sample rate conversion via audioop.ratecv().
+#    - _prepare_for_tts(): strips markdown, list markers, normalizes punctuation.
+#    - Threaded worker: _tts_worker processes speech queue with turn validation.
+#    - Configurable parameters: frames_per_buffer, playout_chunk_size,
+#      min_sentence_length, force_first_fragment_after_words.
+#    - on_speaking_start/stop callbacks for UI mode state synchronization.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import importlib

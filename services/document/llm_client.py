@@ -1,8 +1,27 @@
-"""Lightweight Gemini client for document processing LLM calls.
-
-Provides retry logic, timeout handling, and structured JSON extraction.
-Used by the cleaner, chunk processor, and final intelligence stages.
-"""
+# ==============================================================================
+# File: services/document/llm_client.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Document Pipeline LLM Client — Dual-Model Architecture
+#
+#    - Dual-model LLM client for the document intelligence pipeline.
+#    - Fast model: quick extraction tasks (summaries, key points).
+#    - Deep model: complex reasoning (analysis, comparison, Q&A).
+#    - Automatic model selection based on task complexity.
+#    - Token budget management for context window optimization.
+#    - Retry logic with model fallback on transient API failures.
+#    - JSON output mode for structured intelligence extraction.
+#    - Configurable temperature and max tokens per task type.
+#    - Wraps core/llm_api.py with document-specific conventions.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

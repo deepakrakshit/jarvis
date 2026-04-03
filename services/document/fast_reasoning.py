@@ -1,4 +1,26 @@
-"""Lightweight deterministic helpers for ultra-fast document reasoning."""
+# ==============================================================================
+# File: services/document/fast_reasoning.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Fast Document Reasoning Module
+#
+#    - Lightweight LLM reasoning for quick document insights.
+#    - Handles simple extraction without full deep reasoning pipeline.
+#    - Optimized for low-latency summary and key point generation.
+#    - Uses the fast model from DocumentLLMClient for efficiency.
+#    - Skips vision and OCR stages when text extraction is sufficient.
+#    - Provides quick-scan capability for document triage workflows.
+#    - Returns simplified intelligence output with essential fields.
+#    - Used as an early-exit optimization in the pipeline.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

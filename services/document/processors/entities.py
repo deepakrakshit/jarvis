@@ -1,8 +1,27 @@
-"""Deterministic key-entity extraction for document intelligence.
-
-This module keeps extraction lightweight and model-free so entities are
-available even when reasoning responses are partial.
-"""
+# ==============================================================================
+# File: services/document/processors/entities.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Named Entity Extractor & Normalizer
+#
+#    - Extracts named entities from document text with categorization.
+#    - Categories: names, dates, prices, companies, plans, features.
+#    - Deduplication: merges equivalent entity mentions.
+#    - Normalization: standardizes date formats, currency representations.
+#    - normalize_entities(): ensures consistent entity dict structure.
+#    - LLM-assisted extraction for complex entity recognition.
+#    - Pattern-based extraction for high-confidence entity types.
+#    - Returns standardized dict with list values per category.
+#    - Used by document_service, qa_engine, and display formatters.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

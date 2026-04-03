@@ -1,3 +1,28 @@
+# ==============================================================================
+# File: services/system/window_control.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Window Management Controller — Win32 API
+#
+#    - Win32 API based window management for desktop automation.
+#    - switch_window: Alt+Tab simulation for window cycling.
+#    - minimize/maximize/restore: ShowWindow with SW_ flags.
+#    - focus_window: SetForegroundWindow with foreground lock workaround.
+#    - close_window: WM_CLOSE message dispatch for graceful shutdown.
+#    - Foreground window detection via GetForegroundWindow.
+#    - Process-aware window enumeration using EnumWindows callback.
+#    - Returns structured result with success and window state metadata.
+#    - Handles permission elevation requirements for protected windows.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import ctypes

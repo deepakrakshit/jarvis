@@ -1,8 +1,27 @@
-"""Cross-platform file selector for the Document Intelligence pipeline.
-
-The LLM NEVER triggers the file picker — only the system/UI layer does.
-Supports tkinter (GUI) and fallback to CLI path input.
-"""
+# ==============================================================================
+# File: services/document/file_selector.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Document File Validator & Security Gate
+#
+#    - File path validation with security-first design.
+#    - Extension whitelisting: only .pdf, .docx, .png, .jpg, .jpeg, .tiff.
+#    - File size limit enforcement to prevent OOM on large files.
+#    - Path traversal prevention: blocks ../ and symbolic link attacks.
+#    - Absolute path normalization for consistent cache key generation.
+#    - Existence and readability checks before pipeline processing.
+#    - Returns (validated_path, error) tuple for clean error handling.
+#    - Blocks hidden files and system directories.
+#    - Handles Windows long path and UNC path edge cases.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

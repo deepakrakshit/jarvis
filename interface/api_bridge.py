@@ -1,3 +1,32 @@
+# ==============================================================================
+# File: interface/api_bridge.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Pywebview JavaScript-Python Bridge — Voice, Metrics & Mode Control
+#
+#    - Bridge between the Three.js frontend and Python runtime backend.
+#    - Voice echo prevention: multi-layer system combining mode-based blocking,
+#      post-speaking cooldown (2.2s), sequence matching (threshold 0.78),
+#      and token overlap detection to filter self-echo.
+#    - System metrics worker (~1Hz): pushes CPU%, RAM, disk, temperature,
+#      network throughput, battery, latency, and uptime to the frontend.
+#    - Mode state machine: listening -> processing -> speaking transitions
+#      driven by runtime event callbacks.
+#    - Assistant text delta streaming for real-time response display.
+#    - submit_voice(): voice input gate with echo/duplicate/short-text filters.
+#    - skip_current_reply(): allows users to interrupt active responses.
+#    - JarvisApi: thin wrapper exposing ui_ready, submit_voice, skip_current_reply.
+#    - Thread-safe design with locks for mode, text, and metrics state.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import datetime

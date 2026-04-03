@@ -1,3 +1,29 @@
+# ==============================================================================
+# File: core/humor.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Context-Aware Humor Generation Engine
+#
+#    - Template-based humor system with categorized response pools.
+#    - Anti-repetition guards: tracks last 10 templates in a deque to prevent
+#      staleness and ensure variety in humorous responses.
+#    - Context-aware selection: separate pools for weather commentary, greetings,
+#      time-of-day humor, and general conversational wit.
+#    - Probability-gated injection: humor is added probabilistically, not every turn.
+#    - One-liner generation: produces short, punchy responses for casual queries.
+#    - Weather-specific commentary: generates quips based on temperature and conditions.
+#    - Thread-safe design: safe for concurrent access from multiple request threads.
+#    - Integrates with PersonalityEngine for final output polishing.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import random

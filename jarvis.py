@@ -1,3 +1,31 @@
+# ==============================================================================
+# File: jarvis.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Application Bootstrap & Virtual Environment Resolver
+#
+#    - Serves as the top-level entry point for the entire JARVIS application.
+#    - Detects whether the current Python interpreter is the project's local
+#      virtual environment and performs automatic re-execution if not.
+#    - Uses os.execv for seamless process replacement without spawning
+#      child processes, preserving the original CLI arguments.
+#    - Sets the JARVIS_VENV_REEXECED environment flag to prevent infinite
+#      re-execution loops across nested invocations.
+#    - Supports both 'venv' and '.venv' directory conventions for maximum
+#      compatibility with different project setup workflows.
+#    - Resolves all paths using pathlib for cross-platform path safety.
+#    - Delegates to app/main.py after environment validation is complete.
+#    - Designed for zero-configuration startup — users simply run jarvis.py.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import os

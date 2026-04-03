@@ -1,4 +1,26 @@
-"""Utility helpers for the hybrid document pipeline."""
+# ==============================================================================
+# File: services/document/pipeline_utils.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Pipeline Text Processing Utilities
+#
+#    - Shared text normalization utilities for the document pipeline.
+#    - Whitespace normalization and sentence boundary detection.
+#    - Content truncation for LLM context window management.
+#    - Text quality scoring for content reliability assessment.
+#    - Chunk boundary management for retrieval indexing.
+#    - Encoding normalization for cross-platform text handling.
+#    - Format-specific text cleaning (PDF artifact removal, etc.).
+#    - Used across all pipeline stages for consistent text processing.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

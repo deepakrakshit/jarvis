@@ -1,3 +1,28 @@
+# ==============================================================================
+# File: requirements.txt
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Python Dependency Manifest — Runtime Environment Specification
+#
+#    - Pinned dependency list for the JARVIS runtime environment.
+#    - LLM integration: google-genai for Gemini API access.
+#    - TTS: RealtimeTTS, piper-tts for voice synthesis.
+#    - System control: pycaw (audio), pyautogui (automation), psutil (metrics).
+#    - GUI: pywebview for desktop window rendering.
+#    - Document processing: PyPDF2, python-docx, Pillow, paddleocr.
+#    - Network: requests, speedtest-cli.
+#    - Fuzzy matching: rapidfuzz for app name resolution.
+#    - Environment: python-dotenv for configuration loading.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 requests
 google-genai
 RealtimeTTS

@@ -1,3 +1,33 @@
+# ==============================================================================
+# File: core/runtime.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Central Runtime Orchestrator — The Brain of JARVIS
+#
+#    - Primary orchestration engine managing the complete request lifecycle.
+#    - Input pipeline: TextCleaner normalization -> user profile injection ->
+#      agent loop dispatch -> LLM fallback -> personality post-processing.
+#    - TTS speech chunking: three-tier strategy (_first_speech_chunk for low-latency
+#      first output, _early_speech_chunk for stream continuation, _next_speech_chunk
+#      for sentence-boundary-aware splitting).
+#    - Event system: on_mode_change, on_text_delta, on_api_activity callbacks
+#      driving the frontend UI state machine (listening/processing/speaking).
+#    - Turn management: thread-safe cancellation via _cancel_event with ability
+#      to interrupt active LLM stream responses mid-generation.
+#    - Service coordination: initializes and wires WeatherService, SearchService,
+#      NetworkService, SystemControlService, AppControlService, DocumentService.
+#    - Conversation history: maintains message list with configurable max depth.
+#    - Request serialization: _request_lock mutex prevents concurrent processing.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 import datetime
 import json

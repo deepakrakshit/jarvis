@@ -1,8 +1,26 @@
-"""Fusion processor for hybrid document intelligence.
-
-Combines text extraction, OCR output, and vision payloads into one
-structured object that is passed to final LLM reasoning.
-"""
+# ==============================================================================
+# File: services/document/processors/fusion.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Multi-Source Content Fusion Engine
+#
+#    - Merges text from multiple extraction sources into unified output.
+#    - Source inputs: text parser, OCR engine, and vision analysis.
+#    - Conflict resolution: prioritizes higher-confidence sources.
+#    - Overlap deduplication: detects and merges redundant content.
+#    - Source reliability scoring based on extraction method and quality.
+#    - Preserves unique content from each source.
+#    - Handles missing sources gracefully (e.g., no OCR available).
+#    - Returns unified text with source provenance metadata.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

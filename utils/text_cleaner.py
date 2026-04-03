@@ -1,3 +1,27 @@
+# ==============================================================================
+# File: utils/text_cleaner.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    User Input Text Normalizer — Filler Word Removal & Normalization
+#
+#    - Strips filler words: again, now, please, bro, jarvis, hey.
+#    - Compiled regex patterns for efficient repeated matching.
+#    - CleanedText dataclass: original_text, cleaned_text, had_again flag.
+#    - had_again tracking enables weather re-query detection in runtime.
+#    - Whitespace normalization: collapses multiple spaces and tabs.
+#    - Punctuation cleanup: removes trailing/leading punctuation noise.
+#    - Preserves original text alongside cleaned version for context.
+#    - Used by runtime, weather service, and agent loop for input normalization.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import re

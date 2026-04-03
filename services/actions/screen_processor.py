@@ -1,9 +1,27 @@
-"""
-services/actions/screen_processor.py
-Production-grade screen and camera processing with local frame analysis,
-cross-frame memory, lightweight object tracking, and optional Gemini live
-enrichment.
-"""
+# ==============================================================================
+# File: services/actions/screen_processor.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Screen & Camera Vision Processor — AI-Powered Analysis
+#
+#    - Screen and camera capture module (~1000 lines) with vision analysis.
+#    - view_now mode: live screen/camera capture with immediate AI analysis.
+#    - view_latest mode: cached frame recall for follow-up questions.
+#    - Gemini Vision API integration for scene understanding.
+#    - Structured analysis output: detected objects, scene summary, metrics.
+#    - Session history tracking for multi-turn visual conversations.
+#    - Screenshot capture via pyautogui with PIL image processing.
+#    - Camera capture integration for webcam-based visual queries.
+#    - Lazy-imported to minimize startup overhead for non-visual workflows.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

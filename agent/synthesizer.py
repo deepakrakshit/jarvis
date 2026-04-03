@@ -1,3 +1,30 @@
+# ==============================================================================
+# File: agent/synthesizer.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Response Synthesis Engine — Tool Outputs to Natural Language
+#
+#    - Transforms raw tool execution outputs into polished natural language.
+#    - LLM-powered synthesis: sends sanitized tool outputs + user query +
+#      conversation history to Gemini with tone and identity enforcement rules.
+#    - Result sanitization: sanitize_tool_results() filters search results for
+#      semantic relevance, strips IP location data, drops irrelevant snippets.
+#    - Per-tool fallback formatters: _render_search_fallback, _render_app_control_
+#      fallback, etc. for when LLM synthesis is unavailable or fails.
+#    - Confidence-aware prompting: low confidence triggers cautious wording.
+#    - Multi-tool result merging for composite query responses.
+#    - Output sanitization: removes markdown artifacts and enforces identity.
+#    - Returns synthesized text plus metadata about the synthesis process.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import json

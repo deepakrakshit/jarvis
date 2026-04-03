@@ -1,3 +1,32 @@
+# ==============================================================================
+# File: agent/agent_loop.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Autonomous Re-Act Agent Loop — Plan, Execute, Observe, Synthesize
+#
+#    - Production-grade autonomous reasoning engine with multi-turn self-correction.
+#    - Implements the Re-Act (Reasoning and Acting) cycle with max 4 turns.
+#    - Hybrid intent classification: ~95 keyword hints + LLM fallback classifier
+#      (cheap Gemini call, max 5 tokens, temp=0) for ambiguous queries.
+#    - Three deterministic fast-paths bypass the planner entirely:
+#      system control (volume/brightness/window), computer automation (browser),
+#      and screen processing (camera/display analysis).
+#    - Context injection: last 4 conversation turns (truncated to 300 chars)
+#      plus user profile (name, location) for personalized planning.
+#    - System follow-up detection: catches 'set it to 50' after volume commands.
+#    - AgentLoopResult provides structured response with text, tool outputs,
+#      confidence level, and tool execution metadata.
+#    - Graceful degradation: falls back to direct LLM chat if agent loop fails.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import logging

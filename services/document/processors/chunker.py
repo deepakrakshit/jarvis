@@ -1,9 +1,26 @@
-"""Semantic document chunker.
-
-Chunks documents by semantic sections with token limit awareness.
-NOT naive splitting — respects section boundaries, paragraph breaks,
-and sentence structure for optimal LLM processing.
-"""
+# ==============================================================================
+# File: services/document/processors/chunker.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Document Text Chunker — Retrieval-Optimized Segmentation
+#
+#    - Splits document text into semantically coherent chunks.
+#    - Sentence-boundary-aware splitting for natural chunk boundaries.
+#    - Configurable chunk size with overlap for retrieval continuity.
+#    - Respects paragraph boundaries when possible for coherence.
+#    - Handles edge cases: very short documents, single-sentence content.
+#    - Assigns unique chunk IDs for citation tracking in Q&A.
+#    - Source labeling: tags chunks with their origin section.
+#    - Optimized for semantic retrieval performance in the Q&A engine.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

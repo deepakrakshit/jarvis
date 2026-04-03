@@ -1,8 +1,27 @@
-"""Document question-answering engine.
-
-This module encapsulates single and multi-document Q&A logic so DocumentService
-can remain an orchestration facade.
-"""
+# ==============================================================================
+# File: services/document/qa_engine.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Retrieval-Augmented Document Q&A Engine
+#
+#    - Question answering system over analyzed document content.
+#    - Semantic chunk retrieval via SemanticRetriever with top-k selection.
+#    - Evidence ranking based on relevance scoring to the question.
+#    - LLM-powered answer generation with retrieved chunks as context.
+#    - Citation tracking: maps answer claims to source chunks.
+#    - Single-document Q&A: answer_single_document_question().
+#    - Cross-document comparison: answer_multi_document_question() for
+#      pricing, plans, risks, and key differences across multiple files.
+#    - looks_like_compare_question(): detects comparative intent in queries.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

@@ -1,3 +1,28 @@
+# ==============================================================================
+# File: services/weather_service.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Weather Intelligence Service — Open-Meteo Integration
+#
+#    - Open-Meteo API backed weather service requiring no API key.
+#    - Location resolution priority: explicit arg -> query-parsed city ->
+#      session memory (last_city) -> IP-based geolocation fallback.
+#    - Geocoding via utils/geocode_resolver.py with population-weighted scoring.
+#    - Current conditions: temperature, feels-like, humidity, wind, weather code.
+#    - 3-day forecast support for 'tomorrow' and 'forecast' queries.
+#    - Rain probability queries: 'will it rain today/tomorrow' routing.
+#    - WMO weather code mapping (0-99) to human-readable descriptions.
+#    - Dual interface: get_weather_data() for agent and get_weather_brief() for display.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import logging

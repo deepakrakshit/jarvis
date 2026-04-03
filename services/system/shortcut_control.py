@@ -1,3 +1,28 @@
+# ==============================================================================
+# File: services/system/shortcut_control.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Keyboard Shortcut Dispatcher — Cross-Application Automation
+#
+#    - Maps 25+ high-level action names to keyboard shortcut sequences.
+#    - Media controls: play/pause, next/previous track, stop.
+#    - Browser tabs: new, close, reopen, next, previous.
+#    - Navigation: refresh, hard refresh, back, forward, history, downloads.
+#    - Clipboard: copy, paste, cut, select all, save, find.
+#    - Display: zoom in/out/reset, task view, snap window left/right/up/down.
+#    - System: display off/on, toggle projection mode.
+#    - Uses pyautogui.hotkey for reliable cross-application execution.
+#    - Returns structured result with action status and verification flag.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import ctypes

@@ -1,3 +1,28 @@
+# ==============================================================================
+# File: services/system/system_service.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Unified System Control Facade — 40+ Deterministic Actions
+#
+#    - Dispatcher pattern mapping action names to specialized controller methods.
+#    - Volume: increase/decrease/set/mute/unmute via VolumeController.
+#    - Brightness: increase/decrease/set via BrightnessController.
+#    - Window: switch/minimize/maximize/restore/focus/close via WindowController.
+#    - Desktop: minimize_all/restore_all/show_desktop via DesktopController.
+#    - Shortcuts: media keys, browser tabs, clipboard, zoom via ShortcutController.
+#    - Direct system: lock_screen (ctypes), sleep (powrprof) with safe mode blocking.
+#    - Rate limiting: sliding window deque (max actions per minute).
+#    - Action logging: capped deque of ActionLogEntry records for audit trails.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import ctypes

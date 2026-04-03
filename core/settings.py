@@ -1,3 +1,28 @@
+# ==============================================================================
+# File: core/settings.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Application Configuration & System Identity Prompt
+#
+#    - Frozen @dataclass (AppConfig) encapsulating 30+ environment variables.
+#    - Defines the JARVIS system prompt establishing AI identity, personality
+#      rules, behavioral constraints, and conversational tone guidelines.
+#    - LLM configuration: API keys, model selection, fallback chain, token limits.
+#    - TTS tuning: chunk size, fragment lengths, buffer parameters, queue timeout.
+#    - Voice model config: Piper model paths, HuggingFace download URLs, auth tokens.
+#    - Document pipeline: cache toggle, SQLite paths, TTL, max entries.
+#    - Visual constants: ASCII banner, boot lines, ANSI colors, version string.
+#    - Factory method from_env() builds config from dotenv-loaded environment.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import os

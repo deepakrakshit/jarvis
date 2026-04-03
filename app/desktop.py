@@ -1,3 +1,28 @@
+# ==============================================================================
+# File: app/desktop.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Desktop GUI Application Launcher
+#
+#    - Creates a pywebview window with EdgeChromium rendering backend.
+#    - Serves the Three.js frontend via a ThreadingHTTPServer on a random port.
+#    - Establishes the JarvisBridge as the js_api for Python-JavaScript IPC.
+#    - Configures window dimensions (1360x860) with minimum size constraints.
+#    - Registers on_closed event handler for graceful shutdown of bridge,
+#      HTTP server, and optionally the runtime instance.
+#    - Falls back to default GUI backend if EdgeChromium is unavailable.
+#    - Supports optional stdout streaming for dual-mode debugging.
+#    - Manages runtime lifecycle based on ownership configuration.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import logging

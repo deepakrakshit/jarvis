@@ -1,8 +1,26 @@
-"""OCR service for document pipeline.
-
-This module provides lazy PaddleOCR loading and structured OCR output for
-single or multiple images.
-"""
+# ==============================================================================
+# File: services/document/ocr.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Optical Character Recognition Engine — PaddleOCR Integration
+#
+#    - PaddleOCR integrated text extraction from images and scanned pages.
+#    - Multi-page OCR support for PDF documents with image-based content.
+#    - Confidence scoring per text region for quality assessment.
+#    - Bounding box detection for spatial layout understanding.
+#    - Fallback strategies for degraded image quality scenarios.
+#    - Image preprocessing: rotation correction, contrast enhancement.
+#    - Thread-safe OCR engine initialization with lazy loading.
+#    - Returns structured results with text, confidence, and coordinates.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

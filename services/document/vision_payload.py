@@ -1,4 +1,26 @@
-"""Shared helpers for vision payload parsing and normalization."""
+# ==============================================================================
+# File: services/document/vision_payload.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Vision API Payload Builder
+#
+#    - Constructs optimized request payloads for Gemini Vision API calls.
+#    - Image encoding: base64 encoding with format detection.
+#    - Resolution management: downscaling for API limits, upscaling for quality.
+#    - Prompt engineering: task-specific prompts for different analysis modes.
+#    - MIME type detection and validation for supported image formats.
+#    - Payload size optimization to stay within API request limits.
+#    - Multi-image support for batch processing workflows.
+#    - Configurable generation parameters (temperature, max tokens).
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

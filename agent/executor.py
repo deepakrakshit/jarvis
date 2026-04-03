@@ -1,3 +1,32 @@
+# ==============================================================================
+# File: agent/executor.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Tool Execution Engine — Parallel/Sequential with Retry & Validation
+#
+#    - Executes planned tool steps with production-grade reliability guarantees.
+#    - Parallel execution: if all tools are parallel_safe, uses asyncio.gather()
+#      with ThreadPoolExecutor for concurrent tool invocation.
+#    - Sequential execution: ordered step execution with result accumulation.
+#    - Retry with backoff: each step gets 2 attempts for transient failures
+#      (timeout, connection, rate limit, HTTP 429/5xx).
+#    - Post-execution validation: integrates ToolOutputValidator for tool-specific
+#      invariant checks on every result.
+#    - Success inference: _infer_success_and_error() heuristic fallback when
+#      tool output lacks explicit success/error fields.
+#    - Confidence scoring: _tool_confidence() assigns high/medium/low based on
+#      verification status, retry count, and content quality.
+#    - Structured result accumulation for downstream synthesis.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import asyncio

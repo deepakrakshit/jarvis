@@ -1,8 +1,26 @@
-"""Data models for the Document Intelligence pipeline.
-
-Every stage of the pipeline operates on well-defined immutable data structures.
-This enforces type safety and makes each processing step independently testable.
-"""
+# ==============================================================================
+# File: services/document/models.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Document Intelligence Data Models
+#
+#    - DocumentIntelligence: structured analysis output with to_dict() serialization.
+#    - Fields: summary, insights, tables, key_points, entities, risks, metadata.
+#    - PipelineProgress: stage tracking with timing and status information.
+#    - Table model: headers list + rows list-of-lists for structured tables.
+#    - Entity categories: names, dates, prices, companies, plans, features.
+#    - Metadata: processing stats, model versions, error tracking.
+#    - Immutable design for safe passage through caching and serialization.
+#    - JSON-serializable for SQLite cache storage and API responses.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

@@ -1,3 +1,27 @@
+# ==============================================================================
+# File: services/system/system_validator.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    System Action Validator & NLP-to-Action Normalizer
+#
+#    - Maps natural language action descriptions to canonical action identifiers.
+#    - Normalizes phrases like 'turn up the volume' to 'increase_volume'.
+#    - Parameter range validation: volume 0-100%, brightness 0-100%.
+#    - Action whitelisting: only permitted actions pass validation.
+#    - Safe mode enforcement: blocks dangerous actions (sleep, shutdown).
+#    - Context-aware parameter extraction from natural language.
+#    - Returns ValidationResult with normalized action, params, and error info.
+#    - Supports compound queries: 'set volume to 50 and brightness to 80'.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import re

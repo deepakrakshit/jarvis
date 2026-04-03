@@ -1,3 +1,27 @@
+# ==============================================================================
+# File: services/system/desktop_control.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Desktop Environment Controller
+#
+#    - Desktop-level window management operations.
+#    - minimize_all_windows: Win+D keyboard shortcut simulation.
+#    - restore_all_windows: Win+D toggle or Win+Shift+M for restore.
+#    - show_desktop: brings desktop to foreground clearing all windows.
+#    - restore_specific: uses WindowController for named window restore.
+#    - Keyboard simulation via pyautogui.hotkey for cross-app reliability.
+#    - Delegates to WindowController for individual window operations.
+#    - Returns structured result with action status and verification.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import ctypes

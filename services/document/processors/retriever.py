@@ -1,8 +1,27 @@
-"""Lightweight semantic retrieval for document question answering.
-
-The goal is fast, dependency-free chunk retrieval with robust lexical and
-semantic heuristics suitable for runtime Q&A.
-"""
+# ==============================================================================
+# File: services/document/processors/retriever.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Semantic Chunk Retriever — Document Search Index
+#
+#    - Builds and searches a semantic index over document chunks.
+#    - build_chunks(): creates indexed chunks from tagged text blocks.
+#    - Configurable chunk size (max_chunk_chars) and overlap (overlap_chars).
+#    - Top-k retrieval with relevance scoring against user queries.
+#    - Chunk boundary management for answer extraction quality.
+#    - Source-aware retrieval: chunks tagged with origin section labels.
+#    - Used by DocumentQAEngine for evidence retrieval in Q&A.
+#    - Lightweight implementation optimized for in-memory document sets.
+#    - Supports multi-document retrieval for cross-document comparison.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

@@ -1,3 +1,28 @@
+# ==============================================================================
+# File: interface/cli_ui.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Terminal User Interface — Boot Sequence & Custom Input
+#
+#    - ANSI-formatted terminal UI for the CLI launch mode.
+#    - print_boot_sequence(): animated loading dots with status indicators.
+#    - ASCII art banner display with orange/green color theming.
+#    - System status display: VERSION, STATUS: ONLINE, USER: AUTHORIZED.
+#    - loading_line(): per-line loading animation with configurable width.
+#    - input_with_cursor(): character-by-character input on Windows via msvcrt
+#      with visual underscore cursor and backspace support.
+#    - Falls back to standard input() on non-Windows platforms.
+#    - clear_screen(): cross-platform terminal clearing (cls/clear).
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import os

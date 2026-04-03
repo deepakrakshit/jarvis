@@ -1,3 +1,26 @@
+# ==============================================================================
+# File: core/env.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Environment Configuration Loader
+#
+#    - Resolves .env file paths relative to the project root automatically.
+#    - Uses python-dotenv for environment variable loading with overrides.
+#    - Supports both absolute and relative .env file path specifications.
+#    - Determines project root by traversing parent directories from __file__.
+#    - Provides the foundation for all configuration across the system.
+#    - Called early in the initialization chain before any service setup.
+#    - Handles missing .env files gracefully without raising exceptions.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import os

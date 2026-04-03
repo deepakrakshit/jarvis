@@ -1,12 +1,27 @@
-"""Hybrid Document Intelligence Pipeline.
-
-Flow:
-- Detect file type
-- Route image files directly through vision extraction
-- Route PDF/DOCX to parser, then run OCR and vision in parallel when needed
-- Fuse all modalities into a single structured object
-- Send fused object to Gemini for final reasoning
-"""
+# ==============================================================================
+# File: services/document/pipeline.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Multi-Stage Document Extraction Pipeline
+#
+#    - Core pipeline engine (~1200 lines) for document intelligence extraction.
+#    - Stage 1: File parsing — format-specific text and table extraction.
+#    - Stage 2: OCR fallback — PaddleOCR for scanned/image-based content.
+#    - Stage 3: Vision analysis — Gemini Vision for complex layouts and charts.
+#    - Stage 4: Content fusion — merges parser, OCR, and vision outputs.
+#    - Stage 5: LLM reasoning — structured intelligence generation via Gemini.
+#    - Stage 6: Entity extraction — names, dates, prices, companies, features.
+#    - Progress tracking via PipelineProgress for stage-level monitoring.
+#    - Supports PDF, DOCX, and image formats with format-specific strategies.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

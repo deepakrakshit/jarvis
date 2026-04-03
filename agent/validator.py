@@ -1,3 +1,32 @@
+# ==============================================================================
+# File: agent/validator.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Plan & Output Validation Engine — Safety & Invariant Checks
+#
+#    - Dual-purpose validation system for pre-execution and post-execution checks.
+#    - PlanValidator (pre-execution): enforces max 8 steps per plan, max 3
+#      system_control steps, tool existence, and argument schema validation.
+#    - ToolOutputValidator (post-execution): per-tool invariant verification.
+#    - Weather validation: checks temperature is numeric, location matches request,
+#      generates corrected args for one-shot retry on location mismatch.
+#    - Internet search validation: verifies results list structure, checks
+#      title/snippet/link fields, measures query-result relevance overlap.
+#    - App control validation: verifies status in {success, ambiguous, error},
+#      checks verified field, validates app name presence.
+#    - System control validation: checks action, status, success, verified, message.
+#    - Screen process validation: structural check including analysis.summary,
+#      analysis.objects, and live_session fields.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import logging

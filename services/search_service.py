@@ -1,3 +1,28 @@
+# ==============================================================================
+# File: services/search_service.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Real-Time Internet Search — Gemini Grounding API
+#
+#    - Gemini Grounding API powered web search with Google Search integration.
+#    - Multi-variant query generation: original, no-possessive, stripped-prefix.
+#    - Grounding chunk extraction with snippet-to-source index mapping.
+#    - Domain-diversified result ranking to prevent single-source dominance.
+#    - Trust scoring: gov/official/reuters/bbc/wikipedia sources marked trusted.
+#    - LLM-powered query reformulation for zero-result recovery scenarios.
+#    - News-aware prompting: recent reporting focus for news-related queries.
+#    - Dual interface: search_web() for direct results, search_web_raw() for agents.
+#    - Retryable HTTP status handling (408, 429, 500, 502, 503, 504).
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import re

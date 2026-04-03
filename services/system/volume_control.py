@@ -1,3 +1,27 @@
+# ==============================================================================
+# File: services/system/volume_control.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Audio Volume Controller — pycaw COM Interface
+#
+#    - Windows audio volume management via pycaw COM interface.
+#    - Supports absolute set (0-100%), relative increase/decrease by step.
+#    - Mute and unmute toggle with current state detection.
+#    - Post-action state verification: reads back actual volume after changes.
+#    - COM interface initialization with error handling for audio endpoint.
+#    - Scalar-to-percentage conversion for the IAudioEndpointVolume interface.
+#    - Returns structured result with success, verified, state, and message.
+#    - Thread-safe access to the audio endpoint volume interface.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import ctypes

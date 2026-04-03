@@ -1,3 +1,28 @@
+# ==============================================================================
+# File: core/personality.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Personality Engine & LLM Output Post-Processor
+#
+#    - Post-processes every LLM and service output before delivery to the user.
+#    - Strips markdown artifacts: asterisk emphasis, heading markers, code fences.
+#    - Identity enforcement: replaces 'Gemini', 'Google AI', 'language model'
+#      with 'JARVIS' self-references to maintain consistent identity.
+#    - Tone adaptation: detects formal vs casual user style and mirrors it.
+#    - Signature injection: probabilistically appends '— Jarvis' for brand feel.
+#    - Filters excessive whitespace, redundant punctuation, and broken formatting.
+#    - Ensures all responses pass through a consistent quality pipeline.
+#    - Called as the final transformation step before TTS and display output.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import datetime as _dt

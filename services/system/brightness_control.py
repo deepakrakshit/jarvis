@@ -1,3 +1,27 @@
+# ==============================================================================
+# File: services/system/brightness_control.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Display Brightness Controller — WMI Integration
+#
+#    - Monitor brightness management via WMI (Windows Management Instrumentation).
+#    - Supports absolute set (0-100%), relative increase/decrease by step.
+#    - Uses WmiMonitorBrightnessMethods for brightness adjustment.
+#    - Reads current brightness via WmiMonitorBrightness for verification.
+#    - Clamping logic ensures values stay within 0-100% hardware limits.
+#    - Fallback to alternative WMI namespaces for compatibility.
+#    - Returns structured result with success, verified, state, and message.
+#    - Handles laptops and external monitors with different WMI paths.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import logging

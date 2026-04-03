@@ -1,11 +1,27 @@
-"""SQLite-backed cache for document intelligence results.
-
-Design goals:
-- Fast deterministic lookups keyed by file content hash + pipeline fingerprint.
-- Safe operation in desktop/runtime environments (thread lock + atomic commits).
-- Bounded growth using TTL cleanup and max-entry pruning.
-- Fail-open behavior: cache failures must never break document analysis.
-"""
+# ==============================================================================
+# File: services/document/cache_store.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Document Cache Store — SQLite Persistence Layer
+#
+#    - SQLite-backed persistent cache for analyzed document results.
+#    - Content-hash keying: cache identity based on file content, not path.
+#    - TTL-based expiration with configurable time-to-live per entry.
+#    - Atomic read/write operations with WAL journal mode for concurrency.
+#    - Corruption recovery: handles malformed entries gracefully.
+#    - Max entries enforcement with LRU-style eviction.
+#    - compute_file_hash(): SHA-256 based file content fingerprinting.
+#    - build_cache_key(): combines file hash, pipeline version, and model IDs.
+#    - Configurable via DocumentCacheConfig with sensible defaults.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

@@ -1,3 +1,27 @@
+# ==============================================================================
+# File: services/utils/http_client.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    HTTP Client Wrapper — Standardized External API Access
+#
+#    - Lightweight requests-based HTTP client for service API calls.
+#    - Configurable default timeout for all requests.
+#    - get_json(): JSON response parsing with error handling.
+#    - get_text(): plain text response retrieval with encoding support.
+#    - Supports custom parameters and headers per request.
+#    - Standardized exception handling for network errors.
+#    - Used by WeatherService, NetworkService, and geocode resolver.
+#    - Returns None on error instead of raising for graceful degradation.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 from typing import Any

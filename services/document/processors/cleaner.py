@@ -1,9 +1,26 @@
-"""LLM-based document text cleaner.
-
-Uses llama-3.1-8b to remove noise, fix broken sentences, and normalize
-formatting. Raw OCR output is NEVER passed directly to higher-level LLMs —
-this stage sanitizes it first.
-"""
+# ==============================================================================
+# File: services/document/processors/cleaner.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Document Content Cleaner — Text Normalization
+#
+#    - Normalizes and sanitizes raw extracted text from all sources.
+#    - OCR artifact removal: fixes common misrecognition patterns.
+#    - Encoding normalization: handles UTF-8, Latin-1, and mixed encodings.
+#    - Whitespace collapse: normalizes tabs, multiple spaces, blank lines.
+#    - Non-content filtering: removes headers, footers, page numbers.
+#    - Special character handling: smart quotes, em-dashes, ligatures.
+#    - Line break normalization for consistent downstream processing.
+#    - Quality scoring: assesses text cleanliness after normalization.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

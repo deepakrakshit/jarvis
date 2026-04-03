@@ -1,10 +1,27 @@
-"""PDF parser for hybrid document intelligence pipeline.
-
-Responsibilities:
-- Extract text with PyMuPDF
-- Detect scanned pages by low text density
-- Extract page image payloads for downstream vision and OCR stages
-"""
+# ==============================================================================
+# File: services/document/parsers/pdf_parser.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    PDF Document Parser — Multi-Strategy Extraction
+#
+#    - Extracts text, tables, and metadata from PDF files.
+#    - Multiple extraction strategies for different PDF types.
+#    - Text-based PDF: direct text extraction with layout preservation.
+#    - Image-based PDF: delegates to OCR pipeline for scanned pages.
+#    - Table detection: identifies and extracts tabular data structures.
+#    - Metadata extraction: title, author, creation date, page count.
+#    - Page-level extraction for fine-grained content access.
+#    - Handles encrypted and password-protected PDFs gracefully.
+#    - Memory-efficient streaming for large multi-page documents.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

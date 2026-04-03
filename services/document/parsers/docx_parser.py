@@ -1,9 +1,26 @@
-"""DOCX parser for hybrid document intelligence pipeline.
-
-Responsibilities:
-- Extract paragraph and table text via python-docx
-- Extract embedded image payloads for downstream vision processing
-"""
+# ==============================================================================
+# File: services/document/parsers/docx_parser.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    DOCX Document Parser — Word Document Extraction
+#
+#    - Extracts text, tables, and structure from Microsoft Word documents.
+#    - Heading hierarchy preservation for document structure mapping.
+#    - Paragraph styling: bold, italic, underline marker extraction.
+#    - Table extraction with header row detection and cell merging.
+#    - Image extraction from embedded media for vision analysis.
+#    - List detection: ordered and unordered list structure preservation.
+#    - Metadata: title, author, creation/modification dates, word count.
+#    - Handles .docx (OOXML) format via python-docx library.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

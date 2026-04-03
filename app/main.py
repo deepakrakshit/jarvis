@@ -1,3 +1,28 @@
+# ==============================================================================
+# File: app/main.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Unified Application Launcher & Mode Dispatcher
+#
+#    - Central argument parser supporting --cli, --gui, and --both launch modes.
+#    - Default mode (both) spawns CLI on a daemon thread while running
+#      the GUI on the main thread, sharing a single JarvisRuntime instance.
+#    - Performs venv re-execution check for direct app/main.py invocations.
+#    - Validates API key presence before runtime initialization to fail fast.
+#    - Calls ensure_deps() and ensure_gui_deps() for pre-flight checks.
+#    - Wraps all launch paths in structured error handlers that distinguish
+#      HTTP errors, runtime setup errors, and unexpected exceptions.
+#    - Uses threading.Thread with daemon=True for non-blocking CLI operation.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import argparse

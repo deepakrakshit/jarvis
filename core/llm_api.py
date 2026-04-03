@@ -1,3 +1,27 @@
+# ==============================================================================
+# File: core/llm_api.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Gemini LLM API Client with Retry & Fallback Chain
+#
+#    - Provider-agnostic inference gateway for all LLM calls in the system.
+#    - chat_complete() function with configurable model, temperature, and tokens.
+#    - Automatic retry logic: up to 2 retries with 0.6s delay for 429/5xx errors.
+#    - Multi-model fallback: gemini-2.5-flash -> 2.0-flash -> 2.0-flash-lite.
+#    - Structured JSON output mode via response_format_json parameter.
+#    - Timeout enforcement to prevent hanging requests from blocking the system.
+#    - Constructs Gemini API payloads with proper role mapping and safety settings.
+#    - Used by the planner, synthesizer, personality engine, and search reformulator.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import time

@@ -1,3 +1,31 @@
+# ==============================================================================
+# File: services/system/app_control.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Application Lifecycle Management — Resolve, Execute, Verify
+#
+#    - Three-tier architecture: AppResolver -> AppExecutor -> AppControlService.
+#    - AppResolver: fuzzy name resolution via rapidfuzz + PowerShell Get-StartApps
+#      with TTL-based cache (5min) and alias mapping (browser->chrome, etc.).
+#    - Confidence thresholds: >85=resolved, 70-85=ambiguous, <70=not_found.
+#    - AppExecutor: OS-level open (3 fallback launch strategies via PowerShell)
+#      and close (terminate -> wait -> kill) with psutil process verification.
+#    - Process matching: normalized name comparison with compact-form fallback
+#      and substring matching (>=6 chars) to prevent false positives.
+#    - AppControlService: pronoun resolution ('close it' -> last opened app)
+#      using MemoryStore for persistent last-app tracking.
+#    - Canonical process hints for common apps (chrome, code, wt, spotify).
+#    - Returns structured payloads with status, verified flag, and confidence.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import json

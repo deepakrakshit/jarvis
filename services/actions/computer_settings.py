@@ -1,3 +1,27 @@
+# ==============================================================================
+# File: services/actions/computer_settings.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Computer Settings Alias Module
+#
+#    - Thin alias layer for computer settings queries.
+#    - Routes settings requests to SystemControlService for unified handling.
+#    - Covers brightness, volume, and display configuration queries.
+#    - Prevents code duplication between settings and system control paths.
+#    - Maintains consistent response format across all system actions.
+#    - Registered as 'computer_settings' tool in the agent tool registry.
+#    - 35s timeout matching the system_control tool specification.
+#    - Provides a semantic alias so the planner can choose the right tool.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 from typing import Any

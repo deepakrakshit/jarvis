@@ -1,3 +1,30 @@
+# ==============================================================================
+# File: agent/tool_registry.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Tool Registry & Service Binding Factory
+#
+#    - Centralized registry mapping 14+ tool definitions to service implementations.
+#    - build_default_tool_registry() factory wires all service dependencies.
+#    - Each tool definition includes: name, description, input schema, timeout,
+#      parallel_safe flag, and bound execution function.
+#    - Input schema validation with type checking and required field enforcement.
+#    - Tools: weather (20s), internet_search (20s), speedtest (90s), public_ip (10s),
+#      network_location (12s), system_status (8s), temporal (8s), app_control (35s),
+#      system_control (35s), computer_control (120s), screen_process (45s),
+#      document (180s), memory_save (5s), computer_settings (35s).
+#    - Structured action payload builder for consistent system_control responses.
+#    - Lazy imports for heavyweight tools (computer_control, screen_process).
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import re

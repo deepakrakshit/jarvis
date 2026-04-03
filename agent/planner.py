@@ -1,3 +1,29 @@
+# ==============================================================================
+# File: agent/planner.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    LLM-Driven Task Planner — Intent to Structured JSON Plans
+#
+#    - Converts natural language intents into executable JSON tool step sequences.
+#    - Rich system prompt with 11 few-shot examples covering weather, search,
+#      app control, system control, and multi-step composite queries.
+#    - Tool selection guide: maps query categories to optimal tool choices.
+#    - Canonical action lists for system_control and app_control tools.
+#    - Output format: {plan: [...], reasoning: '...', is_complete: bool}.
+#    - Execution history aware: injects previous tool results with success/failure
+#      status so the planner can adapt strategy in Re-Act loop iterations.
+#    - Duplicate step deduplication via JSON signature hashing.
+#    - Strict JSON parsing with retry on malformed LLM output.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import json

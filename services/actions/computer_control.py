@@ -1,3 +1,28 @@
+# ==============================================================================
+# File: services/actions/computer_control.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Autonomous Desktop Automation Engine
+#
+#    - Heavyweight module (~2000 lines) for autonomous desktop interaction.
+#    - Browser navigation: URL opening, site search, tab management.
+#    - UI element interaction: coordinate-based clicking, drag operations.
+#    - Text input simulation with clipboard-based paste for reliability.
+#    - Screenshot capture and AI vision-guided element detection.
+#    - Multi-step automation workflows with state tracking.
+#    - Gemini Vision API integration for screen element recognition.
+#    - Lazy-imported to avoid loading overhead at application startup.
+#    - Extended timeout (120s) for complex multi-step automation tasks.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import base64

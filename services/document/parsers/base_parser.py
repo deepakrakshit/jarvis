@@ -1,8 +1,26 @@
-"""Abstract base class for all document parsers.
-
-Each parser must accept a file path and produce a RawExtractionResult.
-The factory function `detect_parser` selects the correct parser by extension.
-"""
+# ==============================================================================
+# File: services/document/parsers/base_parser.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Abstract Document Parser Interface
+#
+#    - Base class defining the contract for all document format parsers.
+#    - Abstract parse() method: returns structured extraction result.
+#    - Output schema: text content, tables, metadata, page count.
+#    - Error handling conventions: returns error info instead of raising.
+#    - Format validation hook for pre-parse checks.
+#    - Progress reporting interface for long-running extractions.
+#    - Designed for subclassing by format-specific implementations.
+#    - Enforces consistent output structure across all parsers.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

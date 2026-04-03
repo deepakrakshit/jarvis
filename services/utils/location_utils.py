@@ -1,3 +1,27 @@
+# ==============================================================================
+# File: services/utils/location_utils.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    IP Geolocation Utilities & Location Data Model
+#
+#    - LocationInfo frozen dataclass for geographic location data.
+#    - Fields: city, region, country, latitude, longitude, timezone, source.
+#    - label property: formatted 'City, Region, Country' display string.
+#    - resolve_ip_location(): IP geolocation via ip-api.com with fallback.
+#    - Supports both specific IP and local machine geolocation.
+#    - Multi-provider fallback for reliability in different networks.
+#    - Used by WeatherService, NetworkService, and SearchService.
+#    - Returns None on failure for graceful degradation paths.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 from dataclasses import dataclass

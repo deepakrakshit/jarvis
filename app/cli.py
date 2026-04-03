@@ -1,3 +1,28 @@
+# ==============================================================================
+# File: app/cli.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Command-Line Interface REPL Module
+#
+#    - Interactive console interface running a read-eval-print loop (REPL).
+#    - Accepts an optional pre-initialized JarvisRuntime for shared mode.
+#    - Displays an animated boot sequence with ANSI-colored loading lines.
+#    - Issues runtime.greet() on startup for personalized user greetings.
+#    - Custom input_with_cursor() provides character-by-character input
+#      rendering with visual cursor on Windows via msvcrt.
+#    - Gracefully handles KeyboardInterrupt and EOFError for clean exits.
+#    - Supports 'exit' and 'quit' commands for session termination.
+#    - Configurable runtime ownership — can close or preserve the runtime.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import logging

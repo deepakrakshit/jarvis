@@ -1,3 +1,30 @@
+/**
+ * ==============================================================================
+ * File: frontend/assets/styles.css
+ * Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+ * ==============================================================================
+ *
+ * Description:
+ *    Frontend Stylesheet — Visual Design Language
+ *
+ *    - Complete CSS styling for the JARVIS desktop interface.
+ *    - Color scheme: dark theme with accent gradients and glow effects.
+ *    - Typography: modern font stack with appropriate sizing hierarchy.
+ *    - Layout grids: responsive positioning for metrics, text, and controls.
+ *    - Animation keyframes: pulse, fade, glow, and transition effects.
+ *    - Glassmorphism: backdrop-filter blur and transparency effects.
+ *    - Mode-specific styling: color shifts for listening/processing/speaking.
+ *    - Scrollbar customization for seamless visual integration.
+ *    - Responsive breakpoints for different window size configurations.
+ *
+ * Author: Deepak Rakshit
+ * Repository: https://github.com/deepakrakshit/jarvis
+ *
+ * Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+ * See LICENSE file in the project root for license information.
+ * ==============================================================================
+ */
+
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');
 
 * {

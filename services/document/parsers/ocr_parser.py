@@ -1,8 +1,26 @@
-"""OCR parser using PaddleOCR for images and scanned PDFs.
-
-PaddleOCR is treated as an optional dependency — if not installed,
-the parser returns a clear error without crashing the pipeline.
-"""
+# ==============================================================================
+# File: services/document/parsers/ocr_parser.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    OCR-Based Image Parser
+#
+#    - Image-to-text parser for scanned documents and image files.
+#    - Routes to the OCR engine (PaddleOCR) for text extraction.
+#    - Supports PNG, JPEG, TIFF, and other common image formats.
+#    - Confidence scoring for extracted text quality assessment.
+#    - Spatial layout preservation using bounding box information.
+#    - Multi-image batch processing for document page sequences.
+#    - Implements the BaseParser interface for pipeline compatibility.
+#    - Fallback strategy when text-based parsing yields no content.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

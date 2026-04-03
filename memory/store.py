@@ -1,3 +1,28 @@
+# ==============================================================================
+# File: memory/store.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Persistent Memory Store — Thread-Safe JSON Key/Value Storage
+#
+#    - Thread-safe JSON file-backed key/value store (data/user_memory.json).
+#    - Atomic writes via temp file + os.replace() for crash safety.
+#    - Corruption recovery: renames corrupt files with .corrupt.{timestamp}.
+#    - MemoryStore class: get(), set(), delete(), as_dict() operations.
+#    - Reentrant lock (RLock) for nested lock acquisition safety.
+#    - Auto-creates data/ directory if it does not exist.
+#    - extract_user_name(): NLP regex extraction from 'my name is X' patterns.
+#    - _normalize_name(): title-cases, trims stop words, limits to 4 parts.
+#    - Used by runtime, weather service, and app control for state persistence.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import json

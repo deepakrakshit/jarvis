@@ -1,3 +1,28 @@
+# ==============================================================================
+# File: utils/geocode_resolver.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    City Geocoding Resolver — Population-Weighted Location Scoring
+#
+#    - Open-Meteo geocoding API client with intelligent result ranking.
+#    - Population-weighted scoring: larger cities get priority (up to +120).
+#    - Major region hints: Delhi->India (+200), London->UK (+200), etc.
+#    - User country preference: matches user's IP country (+150).
+#    - Query country hint: parses 'weather in X for Y' patterns (+160).
+#    - Country alias resolution: US->United States, UK->United Kingdom.
+#    - Returns LocationInfo with city, coordinates, timezone, source.
+#    - Fetches top 3 candidates from API and re-ranks with scoring.
+#    - Used by WeatherService for city-to-coordinates resolution.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import re

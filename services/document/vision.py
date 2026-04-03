@@ -1,9 +1,27 @@
-"""Vision client for document image understanding via Gemini.
-
-This module is responsible for vision-only extraction from document images.
-It enforces strict JSON outputs and includes retry/fallback behavior for
-rate limits and transient upstream failures.
-"""
+# ==============================================================================
+# File: services/document/vision.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    AI Vision Analysis Engine — Gemini Vision API Integration
+#
+#    - Gemini Vision API integration for visual document understanding.
+#    - Page-level analysis: extracts content from complex multi-column layouts.
+#    - Chart and diagram interpretation with structured data extraction.
+#    - Handwritten text recognition via multi-modal LLM capabilities.
+#    - Table detection and structured extraction from visual layouts.
+#    - Image quality assessment and optimal resolution management.
+#    - Dual-model support: fast model for quick scans, deep for complex pages.
+#    - Rate limit handling with retry logic for API quota management.
+#    - Returns structured analysis with extracted text, tables, and metadata.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

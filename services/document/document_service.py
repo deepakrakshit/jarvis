@@ -1,9 +1,29 @@
-"""Document Service — JARVIS integration entry point.
-
-This is the primary interface between the JARVIS agent system and the
-Document Intelligence pipeline. It handles the full lifecycle:
-  file validation → pipeline execution → structured result formatting.
-"""
+# ==============================================================================
+# File: services/document/document_service.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Document Intelligence Service — Analysis, Q&A, Comparison
+#
+#    - Top-level orchestrator with multi-tier caching architecture.
+#    - L1 cache: in-memory OrderedDict with TTL-based expiration.
+#    - L2 cache: SQLite-backed persistent storage with content-hash keys.
+#    - Concurrent request deduplication: per-cache-key threading.Lock prevents
+#      duplicate expensive processing for the same document.
+#    - analyze(): full pipeline execution with structured intelligence output
+#      (summary, insights, tables, key_points, entities, risks).
+#    - answer_question(): retrieval-augmented Q&A over analyzed documents.
+#    - compare_documents(): cross-document comparison for pricing, plans, risks.
+#    - Active document registry: tracks up to 8 recent analyses for follow-up Q&A.
+#    - File hash caching: avoids re-hashing unchanged files via (path, mtime, size).
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
 
 from __future__ import annotations
 

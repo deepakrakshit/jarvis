@@ -1,3 +1,26 @@
+# ==============================================================================
+# File: core/time_utils.py
+# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Temporal Classification Utilities
+#
+#    - Classifies the current time into human-friendly day-part buckets.
+#    - Supports morning, afternoon, evening, and night classifications.
+#    - Used by the greeting system for time-appropriate salutations.
+#    - Provides consistent temporal context for personality tone selection.
+#    - Pure functions with no side effects for easy testing.
+#    - Timezone-aware using datetime.now().astimezone() for local accuracy.
+#    - Lightweight module with zero external dependencies.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import datetime as _dt

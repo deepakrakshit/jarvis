@@ -1,3 +1,30 @@
+/**
+ * ==============================================================================
+ * File: frontend/assets/main.js
+ * Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+ * ==============================================================================
+ *
+ * Description:
+ *    Frontend Application Logic — Three.js Runtime & Bridge Layer
+ *
+ *    - Core JavaScript runtime for the JARVIS desktop interface.
+ *    - Three.js scene management: camera, renderer, plasma shader material.
+ *    - Adaptive animation: responds to system mode state changes.
+ *    - Voice recognition: Web Speech API integration with utterance handling.
+ *    - Bridge API: calls pywebview.api.ui_ready(), submit_voice(), skip.
+ *    - Streaming text renderer: processes onAssistantDelta callbacks.
+ *    - System metrics display: formats and renders setSystemMetrics data.
+ *    - Mode transitions: visual feedback for listening/processing/speaking.
+ *    - Responsive layout management and window resize handling.
+ *
+ * Author: Deepak Rakshit
+ * Repository: https://github.com/deepakrakshit/jarvis
+ *
+ * Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+ * See LICENSE file in the project root for license information.
+ * ==============================================================================
+ */
+
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
