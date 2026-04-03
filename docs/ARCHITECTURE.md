@@ -16,7 +16,7 @@ JARVIS is a **modular AI agent system** that combines three execution modes unde
 
 1. **Local fast-path** — deterministic handlers for identity, greetings, and conversational turns (~0ms)
 2. **Agent loop** — Planner → Validator → Executor → Synthesizer for tool-backed queries
-3. **LLM stream fallback** — direct Groq streaming for general knowledge queries
+3. **LLM stream fallback** — direct Gemini streaming for general knowledge queries
 
 The architecture is explicitly designed so that real-time data **always comes from tools**, never from LLM training data.
 
@@ -35,13 +35,13 @@ flowchart TD
 
     C -->|"P30\nSearch / Factual"| F["🌐 Agent Loop\n+ Web Evidence"]
 
-    C -->|"No match"| G["💬 Groq Stream\nllama-3.1-8b-instant\nTemperature 0.3"]
+    C -->|"No match"| G["💬 Gemini Stream\ngemini-2.5-flash\nTemperature 0.3"]
 
     E --> H["🎭 Personality Engine\n+ Identity Guardrails"]
     F --> H
     D --> H
     G --> H
-    H --> I(["🔊 Final Response\n+ Piper TTS"])
+    H --> I(["🔊 Final Response\n+ Gemini voice"])
 
     style A fill:#0066ff,color:#fff,stroke:#00e1ff,stroke-width:2px
     style I fill:#0066ff,color:#fff,stroke:#00e1ff,stroke-width:2px
@@ -70,8 +70,8 @@ sequenceDiagram
     AL-->>R: true
 
     R->>AL: run(query)
-    AL->>PL: plan(query)
-    Note over PL: Groq JSON mode<br/>llama-3.1-8b<br/>Temperature 0
+    AL->>PL: plan(query)<br/>(with history & profile)
+    Note over PL: Few-shot JSON Planner<br/>gemini-2.5-flash<br/>Temperature 0<br/>Reasoning 500 chars
 
     PL-->>AL: PlanDraft {steps, reasoning}
     AL->>AL: _prepare_plan_for_execution()<br/>(inject session location for weather)
@@ -88,8 +88,8 @@ sequenceDiagram
     EX->>EX: ToolOutputValidator<br/>(location match · schema check)
     EX-->>AL: tool_outputs dict
 
-    AL->>SY: synthesize(query, tool_outputs)
-    Note over SY: Relevance filtering<br/>Identity guardrails<br/>Temperature 0.2
+    AL->>SY: synthesize(query, tool_outputs)<br/>(with history & profile)
+    Note over SY: Relevance filtering<br/>Identity guardrails<br/>gemini-2.5-flash<br/>Temperature 0.25
     SY-->>AL: final response text
 
     AL-->>R: AgentLoopResult {handled, response}
@@ -107,7 +107,9 @@ flowchart LR
     C -->|weather, news, ip\ndocument, volume...| Y(["✅ Use agent"])
     C -->|No| D{Short\n≤5 words?}
     D -->|Yes| Z2(["❌ Skip agent"])
-    D -->|No| Z3(["❌ Skip agent\n→ LLM fallback"])
+    D -->|No| E{LLM Intent\nClassifier}
+    E -->|yes| Y
+    E -->|no| Z3(["❌ Skip agent\n→ LLM fallback"])
 ```
 
 ---
@@ -128,8 +130,8 @@ flowchart TD
 
     E & F --> H{"Text\nLength"}
 
-    H -->|"> TEXT_RICH_MIN_CHARS\n(default 1800)"| I["📝 Text Primary\nllama-3.1-8b\nParallel with Vision"]
-    H -->|"Scanned / Images"| J["👁️ Vision API\nLlama 4 Scout"]
+    H -->|"> TEXT_RICH_MIN_CHARS\n(default 1800)"| I["📝 Text Primary\ngemini-3.1-flash-lite-preview\nParallel with Vision"]
+    H -->|"Scanned / Images"| J["👁️ Vision API\ngemini-3.1-flash-lite-preview"]
     J -->|"Vision fails"| K["🔠 PaddleOCR\nFallback"]
 
     I & J & K & G --> L["🔀 FusionProcessor\nMerge text + OCR + vision"]
@@ -137,8 +139,8 @@ flowchart TD
     L --> M{"Ultra-Fast\nEligible?"}
     M -->|"Yes — no LLM needed"| N["⚡ Deterministic\nSummary + Key Points"]
     M -->|"No"| O{"Reasoning\nTier"}
-    O -->|"Default fast"| P["llama-3.1-8b\nmax_tokens 1600"]
-    O -->|"Deep / asks_depth"| Q["llama-3.3-70b\nmax_tokens 2500"]
+    O -->|"Default fast"| P["gemini-3.1-flash-lite-preview\nmax_tokens 1600"]
+    O -->|"Deep / asks_depth"| Q["gemini-2.5-flash\nmax_tokens 2500"]
 
     N & P & Q --> R["🗂️ Active Document Index\n+ SQLite Cache\n+ In-Memory LRU"]
     R --> S(["📊 DocumentIntelligence\nsummary · insights · key_points\ntables · metrics · risks · entities\nretrieval_chunks"])
@@ -194,9 +196,9 @@ flowchart LR
     A(["Text Response"]) --> B["_first_speech_chunk()\n14–26 chars"]
     B --> C["enqueue_text()\n+ turn_id check"]
     C --> D["TTS Worker Thread\nQueue consumer"]
-    D --> E["stream.feed(text)"]
-    E --> F["AdaptivePiperEngine\nsubprocess piper.exe"]
-    F --> G["WAV → PyAudio\nrate-converted if needed"]
+    D --> E["Gemini Voice API\ngenerateContent AUDIO"]
+    E --> F["Decode inline audio payload"]
+    F --> G["Platform playback\n(winsound on Windows)"]
     G --> H(["🔊 Speaker Output"])
 
     A --> I["_next_speech_chunk()\n28–36 chars on boundaries"]
@@ -204,7 +206,7 @@ flowchart LR
 
     subgraph Interrupt
         J(["Skip Button"]) --> K["tts.interrupt()\nincrement turn_id"]
-        K --> L["stream.stop()"]
+        K --> L["Stop active playback"]
         L --> M["Clear queue\nEmit listening mode"]
     end
 ```
@@ -236,7 +238,7 @@ All document throughput is tunable via `.env` — no code changes required.
 | Variable | Default | Effect |
 |---|---|---|
 | `DOCUMENT_OCR_MAX_WORKERS` | `6` | Parallel PaddleOCR threads |
-| `DOCUMENT_VISION_MAX_WORKERS` | `4` | Parallel Groq Vision requests |
+| `DOCUMENT_VISION_MAX_WORKERS` | `4` | Parallel Gemini Vision requests |
 | `DOCUMENT_PDF_RENDER_DPI` | `140` | Page image resolution for vision/OCR |
 | `DOCUMENT_PDF_MAX_VISION_IMAGES` | `10` | Cap on pages sent to vision model |
 | `DOCUMENT_PDF_MAX_OCR_IMAGES` | `16` | Cap on pages sent to OCR |
@@ -262,7 +264,7 @@ All document throughput is tunable via `.env` — no code changes required.
 | Retry on invalid tool output | `ToolOutputValidator` + `ToolExecutor` retry loop |
 | Correct tool selection | `PlanValidator` schema enforcement |
 | Deterministic system commands | `SystemControlValidator` with `_BLOCKED_ACTIONS` set |
-| Verified source for factual queries | Synthesizer requires successful Serper results |
+| Verified source for factual queries | Synthesizer requires successful Gemini Grounding results |
 | Identity on final output | `_enforce_assistant_identity()` on every LLM response |
 | Safe document path handling | `validate_file_path()` before any parsing |
 | Bounded active document context | LRU eviction at `_active_documents_max_entries = 8` |

@@ -27,7 +27,7 @@ Each module has a single, strict responsibility. Violations of these boundaries 
 | Module | Owns | Must Never |
 |---|---|---|
 | `app/` | Launchers and venv re-exec | Contain business logic |
-| `core/runtime.py` | Intent routing + Groq streaming | Call tool implementations directly |
+| `core/runtime.py` | Intent routing + Gemini streaming | Call tool implementations directly |
 | `core/settings.py` | AppConfig + env loading | Contain runtime state |
 | `agent/` | Plan → Validate → Execute → Synthesize | Make direct service calls |
 | `services/` | Deterministic tool implementations | Call LLMs (except `document/` reasoning stages) |
@@ -84,7 +84,7 @@ Every response must trace its data to the correct source tier. **Mixing tiers is
 
 | Response Type | Required Source | Forbidden |
 |---|---|---|
-| Real-time / current facts | Web search + synthesis via Serper | LLM training data |
+| Real-time / current facts | Web search + synthesis via Gemini Grounding | LLM training data |
 | Weather / forecast | Open-Meteo API directly | Cached stale values |
 | System / operational | Deterministic service | LLM inference |
 | Document analysis | Parser / OCR / Vision fused pipeline | LLM hallucination |
@@ -139,7 +139,7 @@ python -m unittest discover -s tests/stress -p "test_*.py" -v
 | `check internet connectivity` | Deterministic probe result |
 | `run speed test` | Sync speedtest with measurement |
 | `what is my ip` | Public IP from ipify/ifconfig |
-| `who won ipl 2025 season` | Serper web search result |
+| `who won ipl 2025 season` | Gemini Grounding web search result |
 | `analyze document` (PDF) | File picker → analysis → active doc index |
 | Follow-up: `what is the pricing` | Retrieval-backed Q&A from active doc |
 | `open file explorer` | App control (NOT document picker) |

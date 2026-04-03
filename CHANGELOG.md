@@ -27,6 +27,34 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.7.0] — 2026-04-03 — Autonomous Vision & Reliability Upgrade
+
+### Added
+- **Multi-Turn Re-Act Planner**: `AgentLoop.run()` now feeds tool execution history back into Planner turns, enabling self-correction during multi-step requests.
+- **Context-Aware Agent Loop**: Planner and Synthesizer now consume recent conversation turns and user profile context.
+- **LLM-Powered Intent Classification**: Agent loop now performs fast Gemini intent checks for non-obvious tool requests.
+- **Memory Save Tool**: Added explicit `memory_save` tool contract for controlled user fact persistence.
+- **Production Screen Processor**: Added `services/actions/screen_processor.py` with local-first screen/camera analysis, frame memory, lightweight object tracking, and structured result payloads.
+- **Deterministic Visual Routing**: Added direct routing for `view_now` and `view_latest` style screen/camera requests.
+- **Computer Automation Coverage**: Added deterministic browser/UI automation routing and stress tests for `computer_control` autonomous flows.
+- **Expanded Stress Coverage**: Added tests for screen pipeline, screen routing, computer-control routing, tool accuracy confidence, and provider config.
+
+### Changed
+- **Planner Guardrails**: `_prepare_plan_for_execution()` now normalizes incomplete planner steps for `computer_control` and `document` before validation.
+- **Weather Validation Robustness**: location matching now accepts city-only tool outputs when requests include city/state/country labels.
+- **Document Tool Hardening**: document tool now validates `file_path` before analysis and supports active-document sentinel routing.
+- **Search Resilience**: search flow now supports Gemini-based query reformulation fallback when first-pass grounded results are empty.
+- **Synthesizer Resilience**: improved fallback rendering for search, computer actions, and screen processing outputs.
+- **Release Docs + Config Sync**: refreshed README/docs provider references and aligned `.env.example` key coverage/order with `.env`.
+
+### Fixed
+- **Plan Rejection Noise**: fixed repeated "missing required field 'action'" warnings for planner-generated `computer_control` steps.
+- **Weather False Mismatch Warnings**: fixed false `location_mismatch` warnings for labels like `Nagpur, Maharashtra, India` vs `Nagpur`.
+- **Document Validation Warning Spam**: reduced warning noise from invalid planner-provided document paths.
+- **Brightness EDID Warning Noise**: suppressed non-actionable `screen_brightness_control.windows` EDID warnings during runtime.
+
+---
+
 ## [1.6.0] — 2026-04-01 — Control + Conversation Quality Upgrade
 
 ### Added

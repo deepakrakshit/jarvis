@@ -22,7 +22,7 @@ flowchart TD
     C -->|"No match"| E{"3️⃣ Agent Loop\nshould_use_agent()"}
     E -->|"True — tool hints detected"| F["Plan → Validate\n→ Execute → Synthesize"]
     F --> G(["Tool-Backed Response"])
-    E -->|"False — conversational"| H["4️⃣ Groq LLM Stream\nllama-3.1-8b\nTemperature 0.3"]
+    E -->|"False — conversational"| H["4️⃣ Gemini LLM Stream\ngemini-3.1-flash-lite-preview\nTemperature 0.3"]
     H --> I(["LLM Response"])
 
     style D fill:#00C853,color:#fff,stroke:none
@@ -61,7 +61,7 @@ The router is a **sorted list of `IntentRoute` objects**, each with a matcher fu
 | 25 | `update_status` | "system update" · "version" · "patch" | Build version info |
 | 26 | `document_qa` | Has active docs + QA hint markers (no explicit upload) | Retrieval-backed Q&A |
 | 27 | `document` | "analyze document" · "open file picker" · "pdf" / "docx" | Full pipeline |
-| 30 | `search_factual` | "search" · "news" · factual who/what/when patterns | Agent loop + Serper |
+| 30 | `search_factual` | "search" · "news" · factual who/what/when patterns | Agent loop + Gemini Grounding |
 
 ---
 
@@ -146,7 +146,7 @@ flowchart TD
     F -->|"No"| H{_is_factual_query()?\noffice holder · IPL season\nholiday · 'is X still the PM'}
     H -->|"Yes"| G
 
-    G --> I["agent_loop.run(query)\nPlanner → Serper → Synthesizer"]
+    G --> I["agent_loop.run(query)\nPlanner → Gemini Grounding → Synthesizer"]
     I --> J(["Web-evidence response"])
     H -->|"No"| K(["→ LLM fallback"])
 ```

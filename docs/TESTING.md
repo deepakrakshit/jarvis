@@ -98,7 +98,7 @@ latest news without any tools # → Must refuse with safe message
 ### 3 · Search / Factual Accuracy
 
 ```bash
-who won ipl 2025 season       # → Serper web search result (not LLM guess)
+who won ipl 2025 season       # → Gemini Grounding web search result (not LLM guess)
 latest ai news                # → Live news results
 who is the PM of India        # → Live web result
 ```

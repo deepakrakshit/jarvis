@@ -20,7 +20,7 @@ Before diving into specific issues, run these in order:
 python -m compileall app agent core services interface voice
 
 # 2. Confirm .env is set correctly
-python -c "from core.settings import AppConfig; c = AppConfig.from_env('.env'); print('GROQ:', bool(c.groq_api_key), '| SERPER:', bool(c.serper_api_key))"
+python -c "from core.settings import AppConfig; c = AppConfig.from_env('.env'); print('Gemini API key:', bool(c.gemini_api_key), '| Search model set:', bool(c.gemini_search_model))"
 
 # 3. Run full stress suite
 python -m unittest discover -s tests/stress -p "test_*.py" -v
@@ -63,14 +63,14 @@ python -m unittest discover -s tests/stress -p "test_*.py" -v
 **Symptoms:** "I could not complete that web search request" or empty results.
 
 **Common causes:**
-- Missing or invalid `SERPER_API_KEY` in `.env`
-- Serper rate limit exceeded (free tier: 2,500 queries/month)
+- Missing or invalid `GEMINI_API_KEY` in `.env`
+- Gemini Grounding rate limit exceeded (free tier: 2,500 queries/month)
 - Network connectivity issue
 
 **Fixes:**
-1. Verify key: `python -c "import os; from dotenv import load_dotenv; load_dotenv(); print(os.getenv('SERPER_API_KEY', 'MISSING'))"`
+1. Verify key: `python -c "import os; from dotenv import load_dotenv; load_dotenv(); print(os.getenv('GEMINI_API_KEY', 'MISSING'))"`
 2. Test connectivity: `check internet connectivity`
-3. Get a free key at [serper.dev](https://serper.dev)
+3. Get a free key at [ai.google.dev/gemini-api/docs/grounding](https://ai.google.dev/gemini-api/docs/grounding)
 
 ---
 
@@ -156,12 +156,12 @@ python -c "import fitz; import pdfplumber; import docx; import paddleocr; print(
 **Symptoms:** Document analysis missing visual content, tables, or layout information.
 
 **Common causes:**
-- Missing or invalid `GROQ_API_KEY`
+- Missing or invalid `GEMINI_API_KEY`
 - Vision API rate limit (HTTP 429)
 - Text-rich fast lane skipping vision for non-visual content (expected behavior)
 
 **Fixes:**
-1. Verify `GROQ_API_KEY` is set and valid
+1. Verify `GEMINI_API_KEY` is set and valid
 2. For rate limits, retry after 60 seconds or adjust: `DOCUMENT_VISION_FAST_FAIL_ON_429=false`
 3. For non-visual documents, vision skip is expected — OCR and text extraction handle them
 

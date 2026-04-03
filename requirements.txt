@@ -1,4 +1,5 @@
 requests
+google-genai
 RealtimeTTS
 piper-tts
 PyAudio
@@ -7,11 +8,14 @@ psutil
 pathvalidate
 speedtest-cli
 rapidfuzz
-groq
 pycaw
 comtypes
 screen-brightness-control
 pygetwindow
+pyautogui
+pyperclip
+mss
+opencv-python
 
 # Document Analysis Dependencies
 PyMuPDF

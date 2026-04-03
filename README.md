@@ -2,26 +2,26 @@
 
 [![Header](https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=2,3,30&height=220&section=header&text=J.A.R.V.I.S.&fontSize=72&fontColor=ffffff&animation=twinkling&fontAlignY=38&desc=Just%20A%20Rather%20Very%20Intelligent%20System&descAlignY=62&descSize=24)](.)
 
-[![Typing SVG](https://readme-typing-svg.demolab.com?font=Orbitron&size=17&duration=2800&pause=1000&color=00E1FF&center=true&vCenter=true&width=680&lines=Autonomous+AI+Assistant+%E2%80%94+Groq+Powered;Real-Time+Tool+Execution+%2B+Agent+Planning;Multimodal+Document+Intelligence+%28PDF+%2B+DOCX+%2B+Vision%29;Realtime+Voice+Synthesis+%2B+Adaptive+Plasma+UI;Production-Grade+%E2%80%94+Reliability-First+Architecture)](https://git.io/typing-svg)
+[![Typing SVG](https://readme-typing-svg.demolab.com?font=Orbitron&size=17&duration=2800&pause=1000&color=00E1FF&center=true&vCenter=true&width=680&lines=Autonomous+AI+Assistant+%E2%80%94+Gemini+Powered;Real-Time+Tool+Execution+%2B+Agent+Planning;Multimodal+Document+Intelligence+%28PDF+%2B+DOCX+%2B+Vision%29;Realtime+Voice+Synthesis+%2B+Adaptive+Plasma+UI;Production-Grade+%E2%80%94+Reliability-First+Architecture)](https://git.io/typing-svg)
 
 <br/>
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![Version](https://img.shields.io/badge/Version-v1.6.0-00C853?style=for-the-badge&logo=github&logoColor=white)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-v1.7.0-00C853?style=for-the-badge&logo=github&logoColor=white)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F7C948?style=for-the-badge)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Active-00C853?style=for-the-badge&logo=checkmarx&logoColor=white)](.)
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)](.)
-[![Groq](https://img.shields.io/badge/Powered%20by-Groq-F55036?style=for-the-badge&logoColor=white)](https://groq.com)
+[![Gemini](https://img.shields.io/badge/Powered%20by-Gemini-F55036?style=for-the-badge&logoColor=white)](https://ai.google.dev)
 [![Three.js](https://img.shields.io/badge/UI-Three.js-000000?style=for-the-badge&logo=threedotjs&logoColor=white)](https://threejs.org)
 [![PRs Welcome](https://img.shields.io/badge/PRs-Welcome-E91E7F?style=for-the-badge&logo=github&logoColor=white)](CONTRIBUTING.md)
 
 <br/>
 
-[![AI](https://img.shields.io/badge/LLM-Llama%203.1%20%2B%203.3-7C3AED?style=flat-square&logo=meta&logoColor=white)](.)
-[![Vision](https://img.shields.io/badge/Vision-Llama%204%20Scout-0EA5E9?style=flat-square&logo=meta&logoColor=white)](.)
+[![AI](https://img.shields.io/badge/LLM-Gemini%203.1%20%2B%202.5-7C3AED?style=flat-square&logoColor=white)](.)
+[![Vision](https://img.shields.io/badge/Vision-Gemini%202.5%20Flash-0EA5E9?style=flat-square&logoColor=white)](.)
 [![OCR](https://img.shields.io/badge/OCR-PaddleOCR-0052CC?style=flat-square&logo=paddlepaddle&logoColor=white)](.)
-[![TTS](https://img.shields.io/badge/TTS-Piper%20%2B%20RealtimeTTS-10B981?style=flat-square)](.)
-[![Search](https://img.shields.io/badge/Search-Serper.dev-F97316?style=flat-square)](.)
+[![TTS](https://img.shields.io/badge/TTS-Gemini%20Voice%20flash--lite-10B981?style=flat-square)](.)
+[![Search](https://img.shields.io/badge/Search-ai.google.dev/gemini-api/docs/grounding-F97316?style=flat-square)](.)
 [![Weather](https://img.shields.io/badge/Weather-Open--Meteo-06B6D4?style=flat-square)](.)
 [![Cache](https://img.shields.io/badge/Cache-SQLite%20%2B%20In--Memory-003B57?style=flat-square&logo=sqlite&logoColor=white)](.)
 
@@ -75,7 +75,7 @@ At its core, JARVIS combines:
 - **⚡ Sub-millisecond local routing** for greetings, identity, and conversational turns
 - **🧠 A multi-step agent loop** (Plan → Validate → Execute → Synthesize) for tool-backed queries
 - **📄 A hybrid document intelligence pipeline** fusing text extraction, OCR, and LLM vision
-- **🎤 Real-time, streaming voice synthesis** via Piper TTS with chunk-level playback
+- **🎤 Real-time, streaming voice synthesis** via Gemini voice with chunk-level playback
 - **🖥️ A pywebview desktop GUI** rendered through a Three.js adaptive plasma sphere with live telemetry
 
 Every module enforces its own reliability contract. No hallucinated real-time data. No fake success confirmations. No persona drift.
@@ -86,13 +86,17 @@ Every module enforces its own reliability contract. No hallucinated real-time da
 
 | Category | Capability |
 |---|---|
-| 🧭 **Smart Routing** | Priority intent router with 30+ local fast-paths before agent loop fallback |
-| 🌐 **Live Web Search** | Real-time web + news evidence via Serper — factual queries always use live sources |
+| 🧭 **Smart Routing** | LLM-powered intent classification with 30+ local fast-paths |
+| 🧠 **Context-Aware Agent** | Planner and Synthesizer hold multi-turn conversation and profile context |
+| 🌐 **Live Web Search** | Real-time web + news evidence via Gemini Grounding with automatic query reformulation |
+| 🔍 **Factual Extraction** | Universal LLM extraction layer answering strict factual questions from search snippets |
 | 🌦️ **Weather + Forecast** | Current conditions, daily forecasts, and rain probability via Open-Meteo |
-| 📄 **Document Intelligence** | PDF · DOCX · Image — text extraction, PaddleOCR, Groq Vision, SQLite caching |
+| 📄 **Document Intelligence** | PDF · DOCX · Image — text extraction, PaddleOCR, Gemini Vision, SQLite caching |
 | 💬 **Document Q&A** | Follow-up Q&A over analyzed documents without re-processing |
 | ⚖️ **Multi-Doc Compare** | Pricing, risk, and feature comparison across multiple documents simultaneously |
-| 🎤 **Realtime TTS** | Streaming Piper voice with first-chunk latency optimization |
+| 👁️ **Screen Intelligence** | Screen/camera capture with structured analysis, object tracking, and latest-frame recall |
+| 🧩 **Computer Automation** | Browser/UI task execution via `computer_control` autonomous action plans |
+| 🎤 **Realtime TTS** | Gemini voice synthesis using `gemini-2.5-flash-lite` |
 | 🖥️ **App Control** | Open/close desktop apps with Start Menu indexing, fuzzy resolution, OS verification |
 | 🔊 **System Control** | Volume · Brightness · Window management · Desktop control · Screen lock |
 | 🌍 **Network Diagnostics** | Public IP · IP-based location · Connectivity probes · Speedtest |
@@ -113,12 +117,12 @@ flowchart TD
     A(["🎙️ User Input"]) --> B{"⚡ Priority\nIntent Router"}
     B -->|"Greeting / Wellbeing\nName / Correction\nLocation / Help"| C(["✅ Local Handler\n~0ms"])
     B -->|"Tool-capable query"| D["🧠 Agent Loop"]
-    D --> E["📋 Planner\nGroq JSON"]
+    D --> E["📋 Planner\nGemini JSON"]
     E --> F["🛡️ Validator\nSchema + Safety"]
     F --> G["⚙️ Executor\nAsync / Parallel"]
-    G --> H[("🔧 Tools\nWeather · Search\nSystem · Document")]
+    G --> H[("🔧 Tools\nWeather · Search · Screen\nSystem · Document · Automation")]
     H --> I["🔬 Synthesizer\nRelevance Filter"]
-    B -->|"General LLM query"| J["💬 Groq Stream\nllama-3.1-8b"]
+    B -->|"General LLM query"| J["💬 Gemini Stream\ngemini-2.5-flash"]
     I --> K["🎭 Personality +\nIdentity Guardrails"]
     J --> K
     C --> K
@@ -141,10 +145,10 @@ flowchart LR
     C -->|"Image"| F["OcrParser"]
     D & E --> G{"Content\nAnalysis"}
     G -->|"Text-Rich"| H["📝 Text Primary\nLLM Pass"]
-    G -->|"Has Images\nor Scanned"| I["👁️ Groq Vision\nLlama 4 Scout"]
+    G -->|"Has Images\nor Scanned"| I["👁️ Gemini Vision\ngemini-2.5-flash"]
     G -->|"Low Confidence"| J["🔠 PaddleOCR"]
     H & I & J --> K["🔀 Fusion\nProcessor"]
-    K --> L["🧠 Reasoning\nllama-3.3-70b"]
+    K --> L["🧠 Reasoning\ngemini-2.5-flash"]
     L --> M["🗂️ Active Document\nIndex + SQLite Cache"]
     M --> N(["💬 Q&A Engine\n+ Multi-Doc Compare"])
 
@@ -162,13 +166,15 @@ flowchart TD
     B -->|"No match"| D{"Priority 18–27\nSpeedtest · Connectivity\nIP · Weather · Status\nTemporal · Document\nDocument QA"}
     D -->|"Matched"| E["Deterministic\nService"]
     D -->|"No match"| F{"Priority 30\nSearch / Factual"}
-    F -->|"Matched"| G["Agent Loop\n+ Web Search"]
-    F -->|"No match"| H["Groq LLM\nStream Fallback"]
+    F -->|"Matched"| G["Agent Loop +\nWeb Search\n(LLM extraction)"]
+    F -->|"No match"| H["LLM Fallback\nIntent Classifier"]
+    H -->|"Needs Tool"| G
+    H -->|"Conceptual"| I["Gemini LLM\nStream Fallback"]
 
     style C fill:#00C853,color:#fff,stroke:none
     style E fill:#0078D6,color:#fff,stroke:none
     style G fill:#F55036,color:#fff,stroke:none
-    style H fill:#374151,color:#fff,stroke:none
+    style I fill:#374151,color:#fff,stroke:none
 ```
 
 ---
@@ -177,14 +183,14 @@ flowchart TD
 
 | Layer | Technology | Role |
 |---|---|---|
-| **LLM Inference** | ![Groq](https://img.shields.io/badge/Groq-F55036?logo=groq&logoColor=white&style=flat-square) `llama-3.1-8b-instant` | Planner · Synthesizer · Fast responses |
-| **Deep Reasoning** | ![Meta](https://img.shields.io/badge/Meta-0668E1?logo=meta&logoColor=white&style=flat-square) `llama-3.3-70b-versatile` | Document reasoning · Complex analysis |
-| **Vision** | ![Meta](https://img.shields.io/badge/Meta-0668E1?logo=meta&logoColor=white&style=flat-square) `llama-4-scout-17b` | Document image extraction |
+| **LLM Inference** | ![Gemini](https://img.shields.io/badge/Gemini-F55036?logo=Gemini&logoColor=white&style=flat-square) `gemini-3.1-flash-lite-preview` | Planner · Synthesizer · Fast responses |
+| **Deep Reasoning** | ![Gemini](https://img.shields.io/badge/Gemini-F55036?logo=Gemini&logoColor=white&style=flat-square) `gemini-3.1-flash-lite-preview` | Document reasoning · Complex analysis |
+| **Vision** | ![Gemini](https://img.shields.io/badge/Gemini-F55036?logo=Gemini&logoColor=white&style=flat-square) `gemini-3.1-flash-lite-preview` | Document image extraction |
 | **OCR** | ![PaddleOCR](https://img.shields.io/badge/PaddleOCR-0052CC?logo=paddlepaddle&logoColor=white&style=flat-square) | Scanned PDFs · Images |
 | **PDF Parsing** | ![PyMuPDF](https://img.shields.io/badge/PyMuPDF-003B57?style=flat-square) + pdfplumber | Text + table extraction |
-| **Web Search** | Serper.dev | Live web + news evidence |
+| **Web Search** | ai.google.dev/gemini-api/docs/grounding | Live web + news evidence |
 | **Weather** | Open-Meteo | Current + daily forecast |
-| **TTS** | RealtimeTTS + Piper | Streaming voice synthesis |
+| **TTS** | Gemini Voice (flash-lite) | Streaming voice synthesis |
 | **Desktop UI** | ![Three.js](https://img.shields.io/badge/Three.js-000000?logo=threedotjs&logoColor=white&style=flat-square) + pywebview | Plasma core GUI |
 | **Cache** | ![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white&style=flat-square) + In-Memory LRU | Document intelligence cache |
 | **Memory** | JSON-backed MemoryStore | Persistent user context |
@@ -233,8 +239,8 @@ cp .env.example .env
 Open `.env` and set your keys:
 
 ```bash
-GROQ_API_KEY=your_groq_api_key       # Required — get it free at console.groq.com
-SERPER_API_KEY=your_serper_api_key   # Required — get it free at serper.dev
+GEMINI_API_KEY=your_gemini_api_key       # Required — get it free at console.ai.google.dev
+GEMINI_SEARCH_MODEL=gemini-2.5-flash     # Optional override for grounded search model
 HF_TOKEN=your_huggingface_token      # Optional — for voice model auto-download
 ```
 
@@ -257,17 +263,16 @@ python jarvis.py
 
 | Variable | Required | Description |
 |---|---|---|
-| `GROQ_API_KEY` | ✅ | Groq inference API key |
-| `SERPER_API_KEY` | ✅ | Web/news search API key |
+| `GEMINI_API_KEY` | ✅ | Gemini inference API key |
 | `HF_TOKEN` | ⬜ | HuggingFace token for voice model download |
 
 ### 🤖 Model Selection
 
 | Variable | Default | Description |
 |---|---|---|
-| `GROQ_MODEL` | `llama-3.1-8b-instant` | Primary fast model |
-| `DOCUMENT_DEEP_MODEL` | `llama-3.3-70b-versatile` | Document reasoning model |
-| `DOCUMENT_VISION_PRIMARY_MODEL` | `meta-llama/llama-4-scout-17b-16e-instruct` | Vision extraction model |
+| `GEMINI_MODEL` | `gemini-3.1-flash-lite-preview` | Primary fast model |
+| `DOCUMENT_DEEP_MODEL` | `gemini-3.1-flash-lite-preview` | Document reasoning model |
+| `DOCUMENT_VISION_PRIMARY_MODEL` | `gemini-3.1-flash-lite-preview` | Vision extraction model |
 
 ### 🎤 Voice Tuning
 
@@ -323,7 +328,7 @@ python app/main.py --mode cli
 jarvis/
 ├── agent/                  # Autonomous agent system
 │   ├── agent_loop.py       # Main loop + fast-path gating
-│   ├── planner.py          # Groq-backed JSON plan generator
+│   ├── planner.py          # Gemini-backed JSON plan generator
 │   ├── executor.py         # Async parallel/sequential tool runner
 │   ├── validator.py        # Schema + output validation + retry
 │   ├── synthesizer.py      # Tool outputs → final response
@@ -344,13 +349,13 @@ jarvis/
 ├── services/               # Deterministic tool implementations
 │   ├── weather_service.py  # Open-Meteo weather + forecast
 │   ├── network_service.py  # IP · connectivity · speedtest · status
-│   ├── search_service.py   # Serper web + news search
+│   ├── search_service.py   # Gemini Grounding web + news search
 │   ├── intent_router.py    # Priority routing engine
 │   ├── document/           # Full document intelligence pipeline
 │   │   ├── pipeline.py     # Orchestrator: parse→OCR→vision→fuse→reason
 │   │   ├── parsers/        # PDF · DOCX · OCR parsers
 │   │   ├── processors/     # Chunker · Cleaner · Entities · Fusion · Retriever
-│   │   ├── vision.py       # Groq vision client + fallback chain
+│   │   ├── vision.py       # Gemini vision client + fallback chain
 │   │   ├── ocr.py          # PaddleOCR processor
 │   │   ├── qa_engine.py    # Retrieval-backed Q&A + multi-doc compare
 │   │   ├── cache_store.py  # SQLite + in-memory LRU cache
@@ -376,7 +381,7 @@ jarvis/
 │   └── store.py            # Thread-safe JSON memory store
 │
 ├── voice/                  # Speech subsystem
-│   └── tts.py              # RealtimeTTS + Piper streaming engine
+│   └── tts.py              # Gemini Voice (flash-lite) streaming engine
 │
 ├── tests/stress/           # 20+ stress test suites
 ├── docs/                   # Extended documentation
@@ -395,7 +400,7 @@ jarvis/
 | ✅ | Hybrid document pipeline: text + OCR + vision + fusion |
 | ✅ | Multi-document comparison with evidence citations |
 | ✅ | Retrieval-first document Q&A |
-| ✅ | Real-time Piper TTS with streaming chunks |
+| ✅ | Real-time Gemini voice with streaming chunks |
 | ✅ | App control with fuzzy resolution + OS verification |
 | ✅ | System control: volume · brightness · windows · desktop |
 | ✅ | Three.js adaptive plasma core UI with live telemetry |

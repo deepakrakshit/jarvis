@@ -13,7 +13,7 @@
 ## 🔭 Scope
 
 JARVIS interacts with:
-- **External APIs** (Groq, Serper, Open-Meteo, ipify)
+- **External APIs** (Gemini, Gemini Grounding, Open-Meteo, ipify)
 - **System-level OS tools** (PowerShell, pycaw, screen-brightness-control, pygetwindow)
 - **Local user-selected documents** (PDF, DOCX, images)
 - **Microphone input** and **user text input**
@@ -68,7 +68,7 @@ These components receive heightened scrutiny in all reviews:
 - API keys are loaded exclusively from `.env` via `core/env.py`
 - Keys are **never logged**, never embedded in code, never committed
 - The `.gitignore` excludes `.env` and all credential files
-- `GROQ_API_KEY`, `SERPER_API_KEY`, and `HF_TOKEN` are treated as production secrets
+- `GEMINI_API_KEY` and `HF_TOKEN` are treated as production secrets
 
 ### 🖥️ System Command Execution
 
@@ -148,7 +148,7 @@ Being transparent about what we do **not** currently protect against:
 |---|---|
 | **No full process sandboxing** | System tool execution is validated but not containerized |
 | **Third-party API trust** | We validate responses but cannot guarantee upstream API integrity |
-| **OCR/Vision model quality** | Output accuracy depends on external Groq model behavior |
+| **OCR/Vision model quality** | Output accuracy depends on external Gemini model behavior |
 | **Microphone access** | Requires OS-level permission; no server-side audio processing |
 | **User supervision required** | JARVIS is designed for interactive use, not unattended automation |
 | **Windows-only system controls** | Volume/brightness/window control uses Windows APIs |
