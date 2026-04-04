@@ -25,7 +25,10 @@
 from __future__ import annotations
 
 __all__ = [
+    "app_control",
+    "coding_assist",
     "computer_control",
     "computer_settings",
+    "file_controller",
     "screen_processor",
 ]

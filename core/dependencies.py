@@ -34,12 +34,14 @@ def ensure_deps() -> None:
         missing.append("requests")
 
     try:
-        try:
-            from realtime_tts import PiperEngine, TextToAudioStream  # noqa: F401
-        except ImportError:
-            from RealtimeTTS import PiperEngine, TextToAudioStream  # noqa: F401
+        import edge_tts  # noqa: F401
     except ImportError:
-        missing.append("RealtimeTTS")
+        missing.append("edge-tts")
+
+    try:
+        import pyaudio  # noqa: F401
+    except ImportError:
+        missing.append("PyAudio")
 
     if missing:
         joined = " ".join(missing)

@@ -108,6 +108,7 @@ FRAME_HISTORY_LIMIT = max(4, min(64, int(os.getenv("SCREEN_FRAME_HISTORY", "12")
 TRACK_MAX_STALE_FRAMES = max(2, min(40, int(os.getenv("SCREEN_TRACK_MAX_STALE_FRAMES", "8"))))
 TRACK_IOU_THRESHOLD = 0.20
 SCREEN_CACHE_DIR = Path(os.getenv("SCREEN_CACHE_DIR", "data/screen_cache"))
+SCREEN_VISION_SUMMARY_MAX_CHARS = max(120, min(600, int(os.getenv("SCREEN_VISION_SUMMARY_MAX_CHARS", "260"))))
 
 SYSTEM_PROMPT = (
     "You are JARVIS. Analyze visual input with precision. "
@@ -482,16 +483,16 @@ class _FrameMemory:
         else:
             lighting = "balanced"
 
-        motion_desc = "motion detected" if motion_score >= 0.08 else "scene mostly static"
+        motion_desc = "motion is visible" if motion_score >= 0.08 else "the scene looks mostly static"
         if object_count <= 0:
-            object_desc = "no stable object regions"
+            object_desc = "I could not lock onto stable regions"
         elif object_count == 1:
-            object_desc = "1 tracked region"
+            object_desc = "I tracked 1 stable region"
         else:
-            object_desc = f"{object_count} tracked regions"
+            object_desc = f"I tracked {object_count} stable regions"
 
         shape = f"{width}x{height}" if width > 0 and height > 0 else "unknown resolution"
-        return f"{mode.capitalize()} frame {shape}, {lighting} lighting, {object_desc}; {motion_desc}."
+        return f"I captured your {mode} at {shape}. Lighting is {lighting}, {object_desc}, and {motion_desc}."
 
     def _persist_image(self, *, mode: str, mime_type: str, image_bytes: bytes, captured_at: float) -> str:
         ext = ".jpg" if "jpeg" in (mime_type or "").lower() else ".png"
@@ -772,6 +773,8 @@ _live = _LiveSession()
 _frame_memory = _FrameMemory(history_limit=FRAME_HISTORY_LIMIT, cache_dir=SCREEN_CACHE_DIR)
 _started = False
 _start_lock = threading.Lock()
+_vision_processor: Any = None
+_vision_processor_lock = threading.Lock()
 
 
 def _ensure_started(player: Any = None, *, wait_timeout: float = 0.0) -> None:
@@ -782,6 +785,81 @@ def _ensure_started(player: Any = None, *, wait_timeout: float = 0.0) -> None:
             _started = True
         elif player is not None:
             _live._player = player
+
+
+def _compact_sentence(text: str, *, max_chars: int = SCREEN_VISION_SUMMARY_MAX_CHARS) -> str:
+    normalized = re.sub(r"\s+", " ", str(text or "").strip())
+    if not normalized:
+        return ""
+    if len(normalized) <= max_chars:
+        return normalized
+    clipped = normalized[: max_chars - 1].rstrip(" ,;:")
+    if clipped and clipped[-1] not in ".!?":
+        clipped += "..."
+    return clipped
+
+
+def _get_vision_processor() -> Any | None:
+    global _vision_processor
+    if _vision_processor is not None:
+        return _vision_processor
+
+    with _vision_processor_lock:
+        if _vision_processor is not None:
+            return _vision_processor
+        try:
+            from services.document.vision import VisionConfig, VisionProcessor
+
+            config = AppConfig.from_env(".env")
+            api_key = str(config.gemini_api_key or "").strip()
+            if not api_key:
+                return None
+
+            vision_config = VisionConfig(
+                api_key=api_key,
+                primary_model=str(config.document_vision_primary_model or "gemini-2.5-flash"),
+                fallback_models=tuple(config.document_vision_fallback_models or ()),
+                timeout_seconds=max(6.0, min(16.0, float(config.document_vision_timeout_seconds))),
+                max_retries_per_model=max(0, int(config.document_vision_max_retries_per_model)),
+                retry_backoff_seconds=max(0.6, float(config.document_vision_retry_backoff_seconds)),
+                fast_fail_on_429=bool(config.document_vision_fast_fail_on_429),
+            )
+            _vision_processor = VisionProcessor(vision_config)
+            return _vision_processor
+        except Exception:
+            return None
+
+
+def _build_ai_visual_summary(*, image_bytes: bytes, mime_type: str, mode: str) -> str:
+    processor = _get_vision_processor()
+    if processor is None:
+        return ""
+
+    try:
+        payload = processor.analyze_image_bytes(
+            image_bytes,
+            mime_type=mime_type,
+            source=f"{mode}_snapshot",
+            allow_second_pass=False,
+        )
+    except Exception:
+        return ""
+
+    if not isinstance(payload, dict):
+        return ""
+
+    summary = _compact_sentence(str(payload.get("summary") or ""))
+    visible_text = _compact_sentence(str(payload.get("visible_text") or ""), max_chars=180)
+    key_elements = payload.get("key_elements") if isinstance(payload.get("key_elements"), list) else []
+    element_phrases = [str(item).strip() for item in key_elements if str(item).strip()][:3]
+
+    if summary:
+        return summary
+    if visible_text:
+        return f"I can read this from the {mode}: {visible_text}"
+    if element_phrases:
+        return f"I can see {', '.join(element_phrases)} in the {mode}."
+    return ""
 
 
 def _build_error_payload(*, mode: str, action: str, request_text: str, error_code: str, message: str) -> dict[str, Any]:
@@ -831,6 +909,7 @@ def _build_success_payload(
     request_text: str,
     from_cache: bool,
     fallback_capture: bool,
+    summary_override: str,
     live_info: dict[str, Any],
     latency_ms: int,
 ) -> dict[str, Any]:
@@ -864,7 +943,7 @@ def _build_success_payload(
         "analysis": {
             "frame_id": snapshot.frame_id,
             "captured_at": snapshot.captured_at_iso,
-            "summary": snapshot.summary,
+            "summary": summary_override or snapshot.summary,
             "metrics": {
                 "width": snapshot.width,
                 "height": snapshot.height,
@@ -922,6 +1001,7 @@ def screen_process(
                 request_text=user_text,
                 from_cache=True,
                 fallback_capture=False,
+                summary_override="",
                 live_info=live_info,
                 latency_ms=elapsed,
             )
@@ -950,6 +1030,14 @@ def screen_process(
         )
 
     snapshot = _frame_memory.record(mode=mode, mime_type=mime_type, image_bytes=image_bytes)
+
+    summary_override = ""
+    if action in {"view_now", "analyze"}:
+        summary_override = _build_ai_visual_summary(
+            image_bytes=image_bytes,
+            mime_type=mime_type,
+            mode=mode,
+        )
 
     live_requested = _resolve_live_enrichment(params, action)
     live_info: dict[str, Any] = {
@@ -983,6 +1071,7 @@ def screen_process(
         request_text=user_text,
         from_cache=False,
         fallback_capture=action == "view_latest",
+        summary_override=summary_override,
         live_info=live_info,
         latency_ms=elapsed,
     )

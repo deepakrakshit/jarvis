@@ -32,11 +32,15 @@ from __future__ import annotations
 import datetime
 import json
 import logging
+import os
+import random
 import re
 import threading
 import time
+from pathlib import Path
 from typing import Callable
 from agent.agent_loop import AgentLoop
+from agent.observability import ObservabilityRecorder
 from agent.tool_registry import build_default_tool_registry
 from core.humor import HumorEngine
 from core.llm_api import chat_complete
@@ -47,7 +51,7 @@ from services.network_service import NetworkService
 from services.search_service import SearchService
 from services.weather_service import WeatherService
 from utils.text_cleaner import TextCleaner
-from voice.tts import RealtimePiperTTS
+from voice.tts import EdgeNeuralTTS
 logger = logging.getLogger(__name__)
 
 class JarvisRuntime:
@@ -116,13 +120,30 @@ class JarvisRuntime:
         self._cancel_event = threading.Event()
         self._stream_response_lock = threading.Lock()
         self._active_stream_response: object | None = None
-        self.tts = RealtimePiperTTS(self.config, on_speaking_start=self._handle_tts_start, on_speaking_stop=self._handle_tts_stop)
+        self._observability = ObservabilityRecorder(file_path=os.path.join("data", "autonomy_events.jsonl"))
+        self.tts = EdgeNeuralTTS(self.config, on_speaking_start=self._handle_tts_start, on_speaking_stop=self._handle_tts_stop)
         self.network_service = NetworkService(self.config, self.personality)
         self.search_service = SearchService(self.config, self.personality)
         self.weather_service = WeatherService(self.config, self.network_service, self.personality, self.humor, self.memory)
         self.document_service = self._init_document_service()
         self.tool_registry = build_default_tool_registry(network_service=self.network_service, weather_service=self.weather_service, search_service=self.search_service, document_service=self.document_service, memory_store=self.memory, get_session_location=self._get_session_location, set_session_location=self._set_session_location)
-        self.agent_loop = AgentLoop.from_registry(config=self.config, tool_registry=self.tool_registry, get_session_location=self._get_session_location)
+        self.agent_loop = AgentLoop.from_registry(
+            config=self.config,
+            tool_registry=self.tool_registry,
+            get_session_location=self._get_session_location,
+            event_sink=self._emit_observability_event,
+        )
+
+    def _emit_observability_event(self, event_type: str, payload: dict[str, object]) -> None:
+        try:
+            safe_payload = dict(payload) if isinstance(payload, dict) else {}
+            safe_payload.setdefault("source", "runtime.agent_loop.executor")
+            self._observability.record(
+                event_type=event_type,
+                payload=safe_payload,
+            )
+        except Exception:
+            return
 
     def _get_session_location(self) -> str | None:
         value = ' '.join((self._session_location or '').strip().split())
@@ -163,9 +184,15 @@ class JarvisRuntime:
             logger.exception('Document service initialization failed: %s', exc)
             return None
 
-    @staticmethod
-    def _assistant_identity_fallback() -> str:
-        return 'I am JARVIS, your assistant, Sir. I am doing well and ready to help.'
+    def _assistant_identity_fallback(self) -> str:
+        options = (
+            'I am JARVIS, your assistant, Sir. I am online and ready to help.',
+            "Allow me to introduce myself. I am JARVIS, your Virtual Artificial Intelligence assistant, here to help with tasks any time you need.",
+            'I am JARVIS, Sir. I can assist with research, system tasks, planning, and day-to-day requests.',
+            'JARVIS at your service, Sir. Give me the objective, and I will handle it.',
+            'I am JARVIS, your personal AI assistant, Sir. Fast, focused, and always ready.',
+        )
+        return random.choice(options)
 
     @staticmethod
     def _strip_role_labels(text: str) -> str:
@@ -521,6 +548,51 @@ class JarvisRuntime:
             return 'evening'
         return 'night'
 
+    @staticmethod
+    def _is_simple_greeting(text: str) -> bool:
+        return bool(re.fullmatch(r"\s*(hello|hi|hey|yo|good morning|good afternoon|good evening|good night)\s*[!.?]*\s*", text or '', flags=re.IGNORECASE))
+
+    @staticmethod
+    def _random_period_greeting(period: str) -> str:
+        morning = (
+            'Ready when you are. What should we focus on first?',
+            'Systems are stable and standing by for your next command.',
+            'I am online, synced, and ready to assist.',
+            'A great start to the day, Sir. Shall we begin?',
+            'All core services are up. Just say the word.',
+        )
+        afternoon = (
+            'I am fully operational and ready for your instructions.',
+            'All modules are steady. What should we tackle next?',
+            'I am standing by for your priority tasks, Sir.',
+            'Everything looks stable on my side. How can I assist?',
+            'Ready for round two, Sir. What is the objective?',
+        )
+        evening = (
+            'I am online and monitoring. What should we work on?',
+            'Standing by, Sir. We can start whenever you like.',
+            'All systems remain steady. What is next on your list?',
+            'Ready to assist, Sir. Point me to the task.',
+            'Good to have you back. Shall we continue?',
+        )
+        night = (
+            'I am awake and ready, Sir. What should we handle?',
+            'Late hours, sharp execution. I am standing by.',
+            'All set on my end. Just give me the task.',
+            'Online, focused, and ready to assist you tonight.',
+            'Still on duty, Sir. What do you need?',
+        )
+
+        period_map = {
+            'morning': morning,
+            'afternoon': afternoon,
+            'evening': evening,
+            'night': night,
+        }
+        tails = period_map.get(period, evening)
+        salutation = 'Good night' if period == 'night' else f'Good {period}'
+        return f'{salutation}, Sir. {random.choice(tails)}'
+
     def _handle_multi_office_query(self, text: str) -> str | None:
         result = self.agent_loop.run(text)
         if result.handled:
@@ -707,7 +779,7 @@ class JarvisRuntime:
             period = 'morning'
         else:
             period = self._day_period_label()
-        return f'Good {period}, Sir. What should we tackle first?'
+        return self._random_period_greeting(period)
 
     def _is_document_request(self, text: str) -> bool:
         lowered = (text or '').strip().lower()
@@ -724,6 +796,65 @@ class JarvisRuntime:
             return False
 
         return bool(self.DOCUMENT_RE.search(lowered))
+
+    def _should_use_document_picker_flow(self, text: str) -> bool:
+        lowered = (text or '').strip().lower()
+        if not lowered:
+            return False
+
+        if self._is_document_picker_request(lowered):
+            return True
+
+        # Explicit path/folder requests should bypass picker and execute directly.
+        if re.search(r"\bdownloads?\b", lowered):
+            return False
+        if re.search(r"\bdesktop\b", lowered):
+            return False
+        if re.search(r"\b(my\s+documents?|documents?\s+folder)\b", lowered):
+            return False
+        if re.search(r"[/\\]", text or ""):
+            return False
+        if re.search(r"\.(pdf|docx|txt|md|png|jpg|jpeg)\b", lowered):
+            return False
+        if re.search(r"\b(all|every)\s+(pdfs?|documents?|files?)\b", lowered):
+            return False
+
+        return True
+
+    @staticmethod
+    def _extract_explicit_document_targets(text: str) -> list[str]:
+        source = str(text or "").strip()
+        if not source:
+            return []
+
+        targets: list[str] = []
+        lowered = source.lower()
+        home = Path.home()
+
+        if re.search(r"\bdownloads?\b", lowered):
+            targets.append(str((home / "Downloads").resolve()))
+        if re.search(r"\bdesktop\b", lowered):
+            targets.append(str((home / "Desktop").resolve()))
+        if re.search(r"\b(my\s+documents?|documents?\s+folder)\b", lowered):
+            targets.append(str((home / "Documents").resolve()))
+
+        for quoted in re.findall(r"['\"]([^'\"]+)['\"]", source):
+            candidate = Path(quoted).expanduser()
+            if not candidate.is_absolute():
+                candidate = (Path.cwd() / candidate).resolve()
+            if candidate.exists():
+                targets.append(str(candidate))
+
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for item in targets:
+            normalized = os.path.normcase(os.path.abspath(str(item)))
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            deduped.append(str(item))
+
+        return deduped
 
     def _is_document_picker_request(self, text: str) -> bool:
         lowered = (text or '').strip().lower()
@@ -795,9 +926,53 @@ class JarvisRuntime:
         if getattr(self, 'document_service', None) is None:
             return 'Document analysis is not available. Install the required dependencies first.'
 
-        from services.document.file_selector import select_files, validate_file_path
+        from services.document.file_selector import is_supported_file, select_files, validate_file_path
 
         compare_mode = bool(self.DOCUMENT_COMPARE_RE.search(text or ''))
+
+        explicit_targets = self._extract_explicit_document_targets(text)
+        if explicit_targets:
+            validated_paths: list[str] = []
+            for target in explicit_targets:
+                candidate = Path(target).expanduser().resolve()
+                if candidate.is_dir():
+                    for file_path in candidate.rglob('*'):
+                        if not file_path.is_file():
+                            continue
+                        if not is_supported_file(str(file_path)):
+                            continue
+                        validated_paths.append(str(file_path.resolve()))
+                        if len(validated_paths) >= 30:
+                            break
+                    continue
+
+                validated_path, error = validate_file_path(str(candidate))
+                if error:
+                    continue
+                validated_paths.append(validated_path)
+
+            # Remove duplicates while preserving order.
+            seen_paths: set[str] = set()
+            deduped_paths: list[str] = []
+            for item in validated_paths:
+                normalized = os.path.normcase(os.path.abspath(item))
+                if normalized in seen_paths:
+                    continue
+                seen_paths.add(normalized)
+                deduped_paths.append(item)
+
+            if not deduped_paths:
+                return 'No supported documents were found in the requested location.'
+
+            if compare_mode or len(deduped_paths) > 1:
+                result = self.document_service.answer_question_for_display(text, file_paths=deduped_paths)
+                self._remember_fact(source='document_compare', query=text, handler=lambda q: self.document_service.answer_question_for_display(q, file_paths=deduped_paths))
+                return result
+
+            result = self.document_service.analyze_for_display(deduped_paths[0], user_query=text)
+            selected_path = deduped_paths[0]
+            self._remember_fact(source='document', query=text, handler=lambda q: self.document_service.analyze_for_display(selected_path, user_query=q))
+            return result
 
         self._emit_mode('processing')
         self._emit_text_delta('Opening file selector...')
@@ -822,7 +997,6 @@ class JarvisRuntime:
         if not validated_paths:
             return 'No valid document was selected.'
 
-        from pathlib import Path
         if compare_mode:
             short_names = ', '.join((Path(path).name for path in validated_paths[:3]))
             self._emit_text_delta(f'Comparing {len(validated_paths)} documents: {short_names}...')
@@ -989,17 +1163,13 @@ class JarvisRuntime:
         return (chunk, rest)
 
     def _enqueue_speech_chunks(self, text: str, turn_id: int) -> bool:
-        buffer = str(text or '').strip()
-        if not buffer:
+        utterance = str(text or '').strip()
+        if not utterance:
             return False
-        queued_any = False
-        (first_chunk, buffer) = self._first_speech_chunk(buffer)
-        if first_chunk:
-            queued_any = self.tts.enqueue_text(first_chunk, turn_id) or queued_any
-        remainder = buffer.strip()
-        if remainder and self.tts.enqueue_text(remainder, turn_id):
-            queued_any = True
-        return queued_any
+
+        # Edge neural voices sound more natural when synthesized as one utterance.
+        # Chunk splitting can introduce a noticeable 2-3s gap between fragments.
+        return self.tts.enqueue_text(utterance, turn_id)
 
     def _respond_local(self, user_text: str, response_text: str, *, persist_user: bool, stream_to_stdout: bool) -> str:
         if self._is_turn_cancelled():
@@ -1045,6 +1215,31 @@ class JarvisRuntime:
                     normalized_text = f'weather in {last_city}'
         if not self._is_correction_request(normalized_text):
             self._last_user_query = normalized_text
+
+        # Route document-style requests through deterministic file picker flow.
+        if self._is_document_request(normalized_text):
+            if self._should_use_document_picker_flow(normalized_text):
+                return self._respond_local(
+                    text,
+                    self._handle_document(normalized_text),
+                    persist_user=persist_user,
+                    stream_to_stdout=stream_to_stdout,
+                )
+
+        if self._is_document_question_request(normalized_text):
+            return self._respond_local(
+                text,
+                self._handle_document_question(normalized_text),
+                persist_user=persist_user,
+                stream_to_stdout=stream_to_stdout,
+            )
+
+        if self._is_simple_greeting(normalized_text):
+            return self._respond_local(text, self._handle_greeting(normalized_text), persist_user=persist_user, stream_to_stdout=stream_to_stdout)
+
+        if self.IDENTITY_QUERY_RE.search(normalized_text):
+            return self._respond_local(text, self._assistant_identity_fallback(), persist_user=persist_user, stream_to_stdout=stream_to_stdout)
+
         user_profile: dict[str, str] = {}
         user_name = (self.memory.get('user_name') or '').strip()
         if user_name:
@@ -1098,7 +1293,7 @@ class JarvisRuntime:
 
     def greet(self, *, stream_to_stdout: bool=True) -> str:
         day_period = self._day_period_label()
-        greeting = f'Good {day_period}, Sir. Ready when you are. What should we work on first?'
+        greeting = self._random_period_greeting(day_period)
         return self._respond_local(user_text='', response_text=greeting, persist_user=False, stream_to_stdout=stream_to_stdout)
 
     def close(self) -> None:

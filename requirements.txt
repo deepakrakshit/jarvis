@@ -8,7 +8,7 @@
 #
 #    - Pinned dependency list for the JARVIS runtime environment.
 #    - LLM integration: google-genai for Gemini API access.
-#    - TTS: RealtimeTTS, piper-tts for voice synthesis.
+#    - TTS: edge-tts + PyAudio for neural voice synthesis/playback.
 #    - System control: pycaw (audio), pyautogui (automation), psutil (metrics).
 #    - GUI: pywebview for desktop window rendering.
 #    - Document processing: PyPDF2, python-docx, Pillow, paddleocr.
@@ -25,8 +25,7 @@
 
 requests
 google-genai
-RealtimeTTS
-piper-tts
+edge-tts
 PyAudio
 pywebview
 psutil

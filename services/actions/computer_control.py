@@ -1,20 +1,10 @@
 # ==============================================================================
 # File: services/actions/computer_control.py
-# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# Project: J.A.R.V.I.S. - Just A Rather Very Intelligent System
 # ==============================================================================
 #
 # Description:
-#    Autonomous Desktop Automation Engine
-#
-#    - Heavyweight module (~2000 lines) for autonomous desktop interaction.
-#    - Browser navigation: URL opening, site search, tab management.
-#    - UI element interaction: coordinate-based clicking, drag operations.
-#    - Text input simulation with clipboard-based paste for reliability.
-#    - Screenshot capture and AI vision-guided element detection.
-#    - Multi-step automation workflows with state tracking.
-#    - Gemini Vision API integration for screen element recognition.
-#    - Lazy-imported to avoid loading overhead at application startup.
-#    - Extended timeout (120s) for complex multi-step automation tasks.
+#    Core module for computer_control functionalities.
 #
 # Author: Deepak Rakshit
 # Repository: https://github.com/deepakrakshit/jarvis
@@ -445,7 +435,7 @@ class ComputerController:
 
         if normalized == "hotkey":
             keys_raw = params.get("keys")
-            keys = self._parse_keys(keys_raw)
+            keys = self._parse_keys(keys_raw) or self._parse_keys(params.get("key"))
             if not keys:
                 return self._err(normalized, "missing_keys", "Hotkey requires keys.")
             if not self._is_safe_hotkey(keys):
@@ -1116,7 +1106,7 @@ class ComputerController:
                 return False, "unsafe_text"
 
         if action == "hotkey":
-            keys = self._parse_keys(args.get("keys"))
+            keys = self._parse_keys(args.get("keys") or args.get("key"))
             if not keys:
                 return False, "missing_keys"
             if not self._is_safe_hotkey(keys):
@@ -1151,15 +1141,26 @@ class ComputerController:
             return script
 
         if "open notepad" in lowered and ("python" in lowered or "write" in lowered):
-            code = self._build_python_program_for_goal(goal)
+            requested_text = self._extract_first_quoted_text(goal)
+            close_requested = bool(re.search(r"\b(close|exit|quit)\b", lowered))
+            payload = requested_text or self._build_python_program_for_goal(goal)
             script = [("open_app_manual", {"app": "notepad"})]
             if "new file" in lowered:
                 script.append(("hotkey", {"keys": "ctrl+n"}))
-            if code:
+            if payload:
                 script.extend(
                     [
                         ("wait", {"seconds": 0.5}),
-                        ("smart_type", {"text": code, "clear_first": False}),
+                        ("smart_type", {"text": payload, "clear_first": False}),
+                    ]
+                )
+            if close_requested:
+                script.extend(
+                    [
+                        ("wait", {"seconds": 0.25}),
+                        ("hotkey", {"keys": "alt+f4"}),
+                        ("wait", {"seconds": 0.35}),
+                        ("press", {"key": "n"}),
                     ]
                 )
             return script
@@ -1241,6 +1242,17 @@ class ComputerController:
             if candidate:
                 return candidate
         return ""
+
+    @staticmethod
+    def _extract_first_quoted_text(text: str) -> str:
+        source = str(text or "")
+        if not source:
+            return ""
+
+        quoted = re.search(r"['\"]([^'\"]{1,500})['\"]", source)
+        if not quoted:
+            return ""
+        return str(quoted.group(1) or "").strip()
 
     @staticmethod
     def _build_python_program_for_goal(goal: str) -> str:

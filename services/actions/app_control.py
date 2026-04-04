@@ -1,5 +1,5 @@
 # ==============================================================================
-# File: services/system/app_control.py
+# File: services/actions/app_control.py
 # Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
 # ==============================================================================
 #
@@ -49,6 +49,11 @@ try:
     import psutil
 except Exception:  # pragma: no cover - dependency handled at runtime
     psutil = None  # type: ignore[assignment]
+
+try:
+    import pygetwindow as gw
+except Exception:  # pragma: no cover - optional dependency
+    gw = None  # type: ignore[assignment]
 
 
 ResolverStatus = Literal["resolved", "ambiguous", "not_found"]
@@ -545,6 +550,7 @@ class AppExecutor:
             "app": match.app,
             "verified": True,
             "confidence": round(float(match.confidence), 2),
+            "message": f"Opened {match.app} successfully.",
         }
 
     def _close_app(self, match: ResolvedApp) -> dict[str, Any]:
@@ -559,8 +565,12 @@ class AppExecutor:
                     "app": match.app,
                     "verified": True,
                     "confidence": round(float(match.confidence), 2),
+                    "message": f"{match.app} was already not running.",
+                    "state": {"terminated_count": 0, "already_closed": True},
                 }
             return self._error_payload("execution_failed")
+
+        terminated_count = len(targets)
 
         for proc in targets:
             try:
@@ -586,6 +596,8 @@ class AppExecutor:
             "app": match.app,
             "verified": True,
             "confidence": round(float(match.confidence), 2),
+            "message": f"Terminated {terminated_count} running instance(s) of {match.app}.",
+            "state": {"terminated_count": terminated_count, "already_closed": False},
         }
 
     def _launch_app(self, match: ResolvedApp) -> bool:
@@ -629,7 +641,7 @@ class AppExecutor:
                 shell,
                 "-NoProfile",
                 "-Command",
-                f"Start-Process -FilePath '{escaped_name}'",
+                f"Start-Process -WindowStyle Normal -FilePath '{escaped_name}'",
             ]
         )
 
@@ -641,7 +653,7 @@ class AppExecutor:
                     shell,
                     "-NoProfile",
                     "-Command",
-                    f"Start-Process -FilePath '{escaped_hint}'",
+                    f"Start-Process -WindowStyle Normal -FilePath '{escaped_hint}'",
                 ]
             )
 
@@ -649,13 +661,37 @@ class AppExecutor:
 
     def _wait_for_open_verification(self, hints: tuple[str, ...], baseline: set[int]) -> bool:
         deadline = time.time() + self._verify_timeout_seconds
+        process_verified = False
         while time.time() < deadline:
-            current = self._snapshot_matching_pids(hints)
-            if current:
-                # Either a new process appeared or one already existed and still exists.
-                if current.difference(baseline) or current:
+            if not process_verified:
+                current = self._snapshot_matching_pids(hints)
+                if current and (current.difference(baseline) or current):
+                    process_verified = True
+            
+            if process_verified:
+                if gw is None:
                     return True
+
+                # Check if a matching window handle exists on screen
+                try:
+                    titles = gw.getAllTitles()
+                except Exception:
+                    return True
+                normalized_hints = {self._normalize_process_name(h) for h in hints if h}
+                for title in titles:
+                    title_norm = self._normalize_process_name(title)
+                    if not title_norm:
+                        continue
+                    if title_norm in normalized_hints:
+                        return True
+                    for hint in normalized_hints:
+                        if hint in title_norm or hint in title_norm.replace(" ", ""):
+                            return True
+                
             time.sleep(self._poll_interval_seconds)
+            
+        # If UI verification failed but process is running, we return False to trigger
+        # "Ambiguous" rather than hallucinated success in the UI.
         return False
 
     def _wait_for_closed_verification(self, hints: tuple[str, ...]) -> bool:

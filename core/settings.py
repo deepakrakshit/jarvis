@@ -11,7 +11,7 @@
 #      rules, behavioral constraints, and conversational tone guidelines.
 #    - LLM configuration: API keys, model selection, fallback chain, token limits.
 #    - TTS tuning: chunk size, fragment lengths, buffer parameters, queue timeout.
-#    - Voice model config: Piper model paths, HuggingFace download URLs, auth tokens.
+#    - Voice model config: Edge neural voice, rate/pitch/volume and output format.
 #    - Document pipeline: cache toggle, SQLite paths, TTL, max entries.
 #    - Visual constants: ASCII banner, boot lines, ANSI colors, version string.
 #    - Factory method from_env() builds config from dotenv-loaded environment.
@@ -117,11 +117,12 @@ class AppConfig:
     document_vision_fast_fail_on_429: bool
     document_ocr_confidence_threshold: float
     hf_token: str
-    piper_path: str
-    piper_model_path: str
-    piper_config_path: str
-    piper_model_url: str
-    piper_config_url: str
+    edge_tts_voice: str
+    edge_tts_rate: str
+    edge_tts_pitch: str
+    edge_tts_volume: str
+    edge_tts_output_format: str
+    edge_tts_expressiveness: int
     memory_store_path: str
     tts_chunk_chars: int
     tts_first_chunk_delay: float
@@ -174,11 +175,6 @@ class AppConfig:
     def from_env(cls, env_path: str = ".env") -> "AppConfig":
         load_env_file(env_path)
 
-        piper_model_path = os.getenv(
-            "PIPER_MODEL_PATH",
-            os.path.join("models", "piper", "en_US-ryan-medium.onnx"),
-        )
-
         fallback_models_raw = os.getenv(
             "DOCUMENT_VISION_FALLBACK_MODELS",
             "",
@@ -210,17 +206,12 @@ class AppConfig:
             document_vision_fast_fail_on_429=_env_bool("DOCUMENT_VISION_FAST_FAIL_ON_429", "true"),
             document_ocr_confidence_threshold=float(os.getenv("DOCUMENT_OCR_CONFIDENCE_THRESHOLD", "0.45")),
             hf_token=os.getenv("HF_TOKEN", ""),
-            piper_path=os.getenv("PIPER_PATH", ""),
-            piper_model_path=piper_model_path,
-            piper_config_path=os.getenv("PIPER_CONFIG_PATH", piper_model_path + ".json"),
-            piper_model_url=os.getenv(
-                "PIPER_MODEL_URL",
-                "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/ryan/medium/en_US-ryan-medium.onnx",
-            ),
-            piper_config_url=os.getenv(
-                "PIPER_CONFIG_URL",
-                "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/ryan/medium/en_US-ryan-medium.onnx.json",
-            ),
+            edge_tts_voice=os.getenv("EDGE_TTS_VOICE", "en-GB-RyanNeural"),
+            edge_tts_rate=os.getenv("EDGE_TTS_RATE", "-4%"),
+            edge_tts_pitch=os.getenv("EDGE_TTS_PITCH", "+6Hz"),
+            edge_tts_volume=os.getenv("EDGE_TTS_VOLUME", "+8%"),
+            edge_tts_output_format=os.getenv("EDGE_TTS_OUTPUT_FORMAT", "raw-24khz-16bit-mono-pcm"),
+            edge_tts_expressiveness=max(0, min(100, int(os.getenv("EDGE_TTS_EXPRESSIVENESS", "65")))),
             memory_store_path=os.getenv("MEMORY_STORE_PATH", os.path.join("data", "user_memory.json")),
             tts_chunk_chars=int(os.getenv("TTS_CHUNK_CHARS", "28")),
             tts_first_chunk_delay=float(os.getenv("TTS_FIRST_CHUNK_DELAY", "0.00")),
