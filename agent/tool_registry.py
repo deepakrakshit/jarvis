@@ -29,11 +29,12 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable
 
 from services.network_service import NetworkService
 from services.search_service import SearchService
-from services.system.app_control import AppControlService
+from services.actions.app_control import AppControlService
 from services.system.system_service import SystemControlService
 from services.weather_service import WeatherService
 from services.document.file_selector import validate_file_path
@@ -156,6 +157,7 @@ def build_default_tool_registry(
 ) -> ToolRegistry:
     """Build the default production tool registry for the agent loop."""
     registry = ToolRegistry()
+    workspace_root = str(Path(__file__).resolve().parents[1])
     app_control_service = AppControlService(memory_store=memory_store)
     system_control_service = SystemControlService()
 
@@ -361,6 +363,55 @@ def build_default_tool_registry(
             result=result,
             source="computer_settings_alias",
         )
+
+    def file_controller_tool(args: dict[str, Any]) -> Any:
+        try:
+            from services.actions.file_controller import file_control_action
+        except Exception as exc:
+            return {
+                "status": "error",
+                "action": str(args.get("action") or "").strip().lower() or "file_control",
+                "success": False,
+                "verified": False,
+                "error": "dependency_unavailable",
+                "message": f"file_controller unavailable: {exc}",
+            }
+
+        return file_control_action(
+            args,
+            workspace_root=workspace_root,
+            app_control_service=app_control_service,
+        )
+
+    def cmd_control_tool(args: dict[str, Any]) -> Any:
+        try:
+            from services.system.cmd_control import cmd_control_action
+        except Exception as exc:
+            return {
+                "status": "error",
+                "action": "run_command",
+                "success": False,
+                "verified": False,
+                "error": "dependency_unavailable",
+                "message": f"cmd_control unavailable: {exc}",
+            }
+
+        return cmd_control_action(args, workspace_root=workspace_root)
+
+    def coding_assist_tool(args: dict[str, Any]) -> Any:
+        try:
+            from services.actions.coding_assist import coding_assist_action
+        except Exception as exc:
+            return {
+                "status": "error",
+                "action": str(args.get("action") or "coding_assist").strip().lower(),
+                "success": False,
+                "verified": False,
+                "error": "dependency_unavailable",
+                "message": f"coding_assist unavailable: {exc}",
+            }
+
+        return coding_assist_action(args, workspace_root=workspace_root)
 
     def screen_process_tool(args: dict[str, Any]) -> Any:
         try:
@@ -652,6 +703,118 @@ def build_default_tool_registry(
 
     registry.register(
         ToolDefinition(
+            name="file_controller",
+            description=(
+                "Advanced file and folder operations: find, list, open, read, write, append, replace, move, copy, "
+                "delete, mkdir, touch, app-assisted close by path, and bulk random text generation via "
+                "action='create_random_text_files', plus content-filtered moves via action='filter_move_by_content'."
+            ),
+            input_schema={
+                "type": "object",
+                "required": ["action"],
+                "properties": {
+                    "action": {"type": "string"},
+                    "path": {"type": "string"},
+                    "directory": {"type": "string"},
+                    "source": {"type": "string"},
+                    "destination": {"type": "string"},
+                    "query": {"type": "string"},
+                    "content": {"type": "string"},
+                    "old_text": {"type": "string"},
+                    "new_text": {"type": "string"},
+                    "count": {"type": "integer"},
+                    "prefix": {"type": "string"},
+                    "extension": {"type": "string"},
+                    "min_chars": {"type": "integer"},
+                    "max_chars": {"type": "integer"},
+                    "exact_chars": {"type": "integer"},
+                    "search_text": {"type": "string"},
+                    "destination_subfolder": {"type": "string"},
+                    "fill_to_count": {"type": "boolean"},
+                    "overwrite_existing": {"type": "boolean"},
+                    "recursive": {"type": "boolean"},
+                    "overwrite": {"type": "boolean"},
+                    "include_hidden": {"type": "boolean"},
+                    "case_sensitive": {"type": "boolean"},
+                    "include_subdirs": {"type": "boolean"},
+                    "kind": {"type": "string"},
+                    "limit": {"type": "integer"},
+                },
+            },
+            fn=file_controller_tool,
+            timeout_seconds=45.0,
+            safe_to_parallelize=False,
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="cmd_control",
+            description=(
+                "Execute shell commands in a controlled environment with timeout and safety-policy blocking for "
+                "destructive operations."
+            ),
+            input_schema={
+                "type": "object",
+                "required": ["action", "command"],
+                "properties": {
+                    "action": {"type": "string"},
+                    "command": {"type": "string"},
+                    "cwd": {"type": "string"},
+                    "timeout_seconds": {"type": "integer"},
+                    "shell": {"type": "string"},
+                    "env": {"type": "object"},
+                },
+            },
+            fn=cmd_control_tool,
+            timeout_seconds=120.0,
+            safe_to_parallelize=False,
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="coding_assist",
+            description=(
+                "Code workflow assistant for project scaffolding, structured multi-file creation, command runs, "
+                "run-file/run-project terminal orchestration, and implementation planning."
+            ),
+            input_schema={
+                "type": "object",
+                "required": ["action"],
+                "properties": {
+                    "action": {"type": "string"},
+                    "name": {"type": "string"},
+                    "project_name": {"type": "string"},
+                    "project_type": {"type": "string"},
+                    "target_dir": {"type": "string"},
+                    "open_after_create": {"type": "boolean"},
+                    "base_dir": {"type": "string"},
+                    "files": {"type": "array"},
+                    "command": {"type": "string"},
+                    "cwd": {"type": "string"},
+                    "timeout_seconds": {"type": "integer"},
+                    "request": {"type": "string"},
+                    "query": {"type": "string"},
+                    "project_path": {"type": "string"},
+                    "file_path": {"type": "string"},
+                    "path": {"type": "string"},
+                    "open_folder": {"type": "boolean"},
+                    "objective": {"type": "string"},
+                    "prompt": {"type": "string"},
+                    "requirements_path": {"type": "string"},
+                    "setup_path": {"type": "string"},
+                    "pyproject_path": {"type": "string"},
+                },
+            },
+            fn=coding_assist_tool,
+            timeout_seconds=180.0,
+            safe_to_parallelize=False,
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
             name="screen_process",
             description=(
                 "Capture and analyze screen/camera frames with structured output, frame memory, and object tracking. "
@@ -681,6 +844,36 @@ def build_default_tool_registry(
         def document_tool(args: dict[str, Any]) -> Any:
             file_path = str(args.get("file_path") or "").strip()
             query = str(args.get("query") or "").strip()
+            def _resolve_document_path_hint(raw_path: str) -> str:
+                text = str(raw_path or "").strip().strip("\"'")
+                if not text:
+                    return ""
+
+                lowered = text.lower()
+                home = Path.home()
+                known = {
+                    "downloads": home / "Downloads",
+                    "~/downloads": home / "Downloads",
+                    "documents": home / "Documents",
+                    "~/documents": home / "Documents",
+                    "desktop": home / "Desktop",
+                    "~/desktop": home / "Desktop",
+                }
+                if lowered in known:
+                    return str(known[lowered].resolve())
+
+                expanded = Path(text).expanduser()
+                if expanded.exists():
+                    return str(expanded.resolve())
+
+                if not expanded.is_absolute():
+                    home_candidate = (home / expanded).expanduser()
+                    if home_candidate.exists():
+                        return str(home_candidate.resolve())
+
+                return str(expanded)
+
+            file_path = _resolve_document_path_hint(file_path)
 
             has_active_documents = bool(getattr(_doc_service, "has_active_documents", lambda: False)())
             active_markers = {
@@ -700,6 +893,29 @@ def build_default_tool_registry(
                     "error": "No file path provided. The system must select a file first.",
                     "requires_file": True,
                 }
+                
+            import os
+            from pathlib import Path
+            from services.document.file_selector import is_supported_file, validate_file_path
+            
+            if os.path.isdir(file_path):
+                expanded_paths = []
+                dir_path = Path(file_path).expanduser().resolve()
+                for p in dir_path.rglob("*"):
+                    if p.is_file() and is_supported_file(str(p)):
+                        expanded_paths.append(str(p))
+                        if len(expanded_paths) >= 15:
+                            break
+                            
+                if expanded_paths:
+                    effective_query = query or "Analyze and summarize these documents."
+                    return _doc_service.compare_documents(expanded_paths, user_query=effective_query)
+                else:
+                    return {
+                        "success": False,
+                        "error": f"No supported documents found in directory: {file_path}",
+                        "requires_file": True,
+                    }
 
             validated_path, error = validate_file_path(file_path)
             if error:

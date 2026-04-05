@@ -112,6 +112,12 @@ class ToolOutputValidator:
         if tool_name == "screen_process":
             return self._validate_screen_process_output(output)
 
+        if tool_name == "file_controller":
+            return self._validate_file_controller_output(output)
+
+        if tool_name == "cmd_control":
+            return self._validate_cmd_control_output(output)
+
         if tool_name != "weather":
             return ToolOutputValidationResult(True, "ok")
 
@@ -163,6 +169,93 @@ class ToolOutputValidator:
             requested_location,
             tool_location,
         )
+        return ToolOutputValidationResult(True, "ok")
+
+    @staticmethod
+    def _validate_file_controller_output(output: Any) -> ToolOutputValidationResult:
+        if not isinstance(output, dict):
+            return ToolOutputValidationResult(False, "file_output_not_object")
+
+        status = str(output.get("status") or "").strip().lower()
+        action = str(output.get("action") or "").strip().lower()
+        success = output.get("success")
+        verified = output.get("verified")
+        message = str(output.get("message") or "").strip()
+
+        if status not in {"success", "error", "blocked"}:
+            return ToolOutputValidationResult(False, "file_invalid_status")
+        if not action:
+            return ToolOutputValidationResult(False, "file_missing_action")
+        if not isinstance(success, bool):
+            return ToolOutputValidationResult(False, "file_missing_success")
+        if not isinstance(verified, bool):
+            return ToolOutputValidationResult(False, "file_missing_verified")
+        if not message:
+            return ToolOutputValidationResult(False, "file_missing_message")
+
+        if not success:
+            error_text = str(output.get("error") or "").strip()
+            if not error_text:
+                return ToolOutputValidationResult(False, "file_missing_error")
+            return ToolOutputValidationResult(True, "ok")
+
+        if action == "create_random_text_files":
+            data = output.get("data")
+            if not isinstance(data, dict):
+                return ToolOutputValidationResult(False, "file_bulk_missing_data")
+
+            target_count = data.get("target_count")
+            total_available = data.get("total_available")
+            failed_count = data.get("failed_count")
+            fill_to_count = bool(data.get("fill_to_count", True))
+
+            if not isinstance(target_count, int) or target_count <= 0:
+                return ToolOutputValidationResult(False, "file_bulk_invalid_target_count")
+            if not isinstance(total_available, int) or total_available < 0:
+                return ToolOutputValidationResult(False, "file_bulk_invalid_total_available")
+            if not isinstance(failed_count, int) or failed_count < 0:
+                return ToolOutputValidationResult(False, "file_bulk_invalid_failed_count")
+            if failed_count > 0:
+                return ToolOutputValidationResult(False, "file_bulk_unreported_failures")
+            if fill_to_count and total_available < target_count:
+                return ToolOutputValidationResult(False, "file_bulk_target_not_met")
+
+        return ToolOutputValidationResult(True, "ok")
+
+    @staticmethod
+    def _validate_cmd_control_output(output: Any) -> ToolOutputValidationResult:
+        if not isinstance(output, dict):
+            return ToolOutputValidationResult(False, "cmd_output_not_object")
+
+        status = str(output.get("status") or "").strip().lower()
+        action = str(output.get("action") or "").strip().lower()
+        success = output.get("success")
+        verified = output.get("verified")
+        stdout = output.get("stdout")
+        stderr = output.get("stderr")
+
+        if status not in {"success", "error", "blocked"}:
+            return ToolOutputValidationResult(False, "cmd_invalid_status")
+        if action != "run_command":
+            return ToolOutputValidationResult(False, "cmd_invalid_action")
+        if not isinstance(success, bool):
+            return ToolOutputValidationResult(False, "cmd_missing_success")
+        if not isinstance(verified, bool):
+            return ToolOutputValidationResult(False, "cmd_missing_verified")
+        if not isinstance(stdout, str) or not isinstance(stderr, str):
+            return ToolOutputValidationResult(False, "cmd_invalid_stream_payload")
+
+        if success:
+            exit_code = output.get("exit_code")
+            if not isinstance(exit_code, int):
+                return ToolOutputValidationResult(False, "cmd_missing_exit_code")
+            if exit_code != 0:
+                return ToolOutputValidationResult(False, "cmd_success_exit_code_mismatch")
+            return ToolOutputValidationResult(True, "ok")
+
+        error_text = str(output.get("error") or "").strip()
+        if not error_text:
+            return ToolOutputValidationResult(False, "cmd_missing_error")
         return ToolOutputValidationResult(True, "ok")
 
     @staticmethod

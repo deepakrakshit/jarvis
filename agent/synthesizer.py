@@ -61,6 +61,9 @@ class Synthesizer:
         if not sanitized_outputs:
             return "I could not produce a reliable response from the available tool results."
 
+        if self._should_force_deterministic_response(sanitized_outputs):
+            return self._fallback_response(sanitized_outputs)
+
         system_prompt = (
             "You are JARVIS — the response synthesizer for an autonomous personal assistant.\n\n"
             "# Core Rules\n"
@@ -202,6 +205,31 @@ class Synthesizer:
         return cleaned
 
     @staticmethod
+    def _should_force_deterministic_response(tool_outputs: dict[str, dict[str, Any]]) -> bool:
+        deterministic_tools = {"file_controller", "cmd_control"}
+        seen_tools: set[str] = set()
+        deterministic_failure = False
+
+        for payload in tool_outputs.values():
+            if not isinstance(payload, dict):
+                continue
+            tool_name = str(payload.get("tool") or "").strip().lower()
+            if not tool_name:
+                continue
+            seen_tools.add(tool_name)
+
+            if tool_name in deterministic_tools and not bool(payload.get("success", False)):
+                deterministic_failure = True
+
+        if not seen_tools:
+            return False
+
+        if seen_tools.issubset(deterministic_tools):
+            return True
+
+        return deterministic_failure
+
+    @staticmethod
     def _score_search_item(item: dict[str, Any], query_tokens: set[str]) -> int:
         title = str(item.get("title") or "")
         snippet = str(item.get("snippet") or "")
@@ -310,6 +338,17 @@ class Synthesizer:
             if rendered:
                 lines.append(rendered)
 
+        if lines:
+            deduped: list[str] = []
+            seen: set[str] = set()
+            for line in lines:
+                key = line.strip().lower()
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                deduped.append(line)
+            lines = deduped
+
         if not lines:
             return "I could not produce a reliable response from tool outputs."
 
@@ -327,6 +366,12 @@ class Synthesizer:
         success = bool(payload.get("success"))
         tool_error = str(payload.get("error") or "").strip()
 
+        if tool == "file_controller" and isinstance(output, dict):
+            return Synthesizer._render_file_controller_fallback(output, tool_error=tool_error)
+
+        if tool == "cmd_control" and isinstance(output, dict):
+            return Synthesizer._render_cmd_control_fallback(output, tool_error=tool_error)
+
         if tool == "app_control" and isinstance(output, dict):
             return Synthesizer._render_app_control_fallback(output, tool_error=tool_error)
 
@@ -338,6 +383,9 @@ class Synthesizer:
 
         if tool == "screen_process" and isinstance(output, dict):
             return Synthesizer._render_screen_process_fallback(output, tool_error=tool_error)
+
+        if tool == "coding_assist" and isinstance(output, dict):
+            return Synthesizer._render_coding_assist_fallback(output, tool_error=tool_error)
 
         if isinstance(output, dict) and isinstance(output.get("results"), list):
             rendered_search = Synthesizer._render_search_fallback(output, tool_error=tool_error)
@@ -355,6 +403,84 @@ class Synthesizer:
         if tool_error:
             return f"I could not complete that request: {tool_error}."
         return "I could not complete that request from available tool outputs."
+
+    @staticmethod
+    def _render_file_controller_fallback(output: dict[str, Any], *, tool_error: str = "") -> str:
+        action = str(output.get("action") or "file_control").strip().lower()
+        success = bool(output.get("success", False))
+        message = str(output.get("message") or "").strip()
+        error_code = str(output.get("error") or tool_error or "").strip()
+        data = output.get("data") if isinstance(output.get("data"), dict) else {}
+
+        if action == "create_random_text_files":
+            path = str(data.get("path") or "the target folder").strip() or "the target folder"
+            target_count = data.get("target_count") if isinstance(data.get("target_count"), int) else 0
+            total_available = data.get("total_available") if isinstance(data.get("total_available"), int) else 0
+            created_count = data.get("created_count") if isinstance(data.get("created_count"), int) else 0
+            existing_count = data.get("existing_count") if isinstance(data.get("existing_count"), int) else 0
+            overwritten_count = data.get("overwritten_count") if isinstance(data.get("overwritten_count"), int) else 0
+            failed_count = data.get("failed_count") if isinstance(data.get("failed_count"), int) else 0
+
+            if success:
+                return (
+                    f"Completed random file generation in {path}: "
+                    f"{total_available}/{target_count} files available "
+                    f"(created {created_count}, existing {existing_count}, overwritten {overwritten_count})."
+                )
+
+            reason = error_code or message or "file_generation_failed"
+            return (
+                f"I could not complete full random file generation in {path}: "
+                f"{total_available}/{target_count} files available "
+                f"(created {created_count}, existing {existing_count}, failed {failed_count}). "
+                f"Reason: {reason}."
+            )
+
+        if success:
+            return message or "File operation completed successfully."
+
+        if message and error_code:
+            return f"{message} ({error_code})"
+        if message:
+            return message
+        if error_code:
+            return f"I could not complete that file operation: {error_code}."
+        return "I could not complete that file operation."
+
+    @staticmethod
+    def _render_cmd_control_fallback(output: dict[str, Any], *, tool_error: str = "") -> str:
+        success = bool(output.get("success", False))
+        message = str(output.get("message") or "").strip()
+        error_code = str(output.get("error") or tool_error or "").strip()
+        exit_code = output.get("exit_code")
+        stdout_preview = Synthesizer._single_line_preview(str(output.get("stdout") or ""), max_chars=160)
+        stderr_preview = Synthesizer._single_line_preview(str(output.get("stderr") or ""), max_chars=160)
+        timed_out = bool(output.get("timed_out", False))
+
+        if success:
+            base = f"Command completed successfully with exit code {exit_code}."
+            if stdout_preview:
+                return f"{base} Output: {stdout_preview}"
+            return base
+
+        if timed_out:
+            if stderr_preview:
+                return f"Command timed out. Details: {stderr_preview}"
+            return "Command timed out before completion."
+
+        detail = stderr_preview or message or error_code or "command_failed"
+        if isinstance(exit_code, int):
+            return f"Command failed with exit code {exit_code}: {detail}"
+        return f"Command failed: {detail}"
+
+    @staticmethod
+    def _single_line_preview(text: str, *, max_chars: int = 180) -> str:
+        one_line = re.sub(r"\s+", " ", str(text or "")).strip()
+        if not one_line:
+            return ""
+        if len(one_line) <= max_chars:
+            return one_line
+        return one_line[: max_chars - 3] + "..."
 
     @staticmethod
     def _render_search_fallback(output: dict[str, Any], *, tool_error: str = "") -> str:
@@ -401,6 +527,10 @@ class Synthesizer:
         app = str(output.get("app") or "that app").strip() or "that app"
         reason = str(output.get("reason") or tool_error or "").strip().lower()
         verified = bool(output.get("verified"))
+        message = str(output.get("message") or "").strip()
+
+        if message:
+            return message
 
         if status == "success" and verified:
             if action == "open":
@@ -473,6 +603,31 @@ class Synthesizer:
         if error_code:
             return f"I could not process the requested screen analysis: {error_code}."
         return "I could not process the requested screen analysis."
+
+    @staticmethod
+    def _render_coding_assist_fallback(output: dict[str, Any], *, tool_error: str = "") -> str:
+        success = bool(output.get("success", False))
+        action = str(output.get("action") or "coding_assist").strip().lower()
+        message = str(output.get("message") or "").strip()
+        error_code = str(output.get("error") or tool_error or "").strip()
+        data = output.get("data") if isinstance(output.get("data"), dict) else {}
+
+        if success:
+            if action == "create_project":
+                project_root = str(data.get("project_root") or "").strip()
+                created_files = data.get("created_files") if isinstance(data.get("created_files"), list) else []
+                file_count = len(created_files)
+                if project_root and file_count > 0:
+                    return f"Project scaffold is ready at {project_root} with {file_count} generated files."
+            return message or "Coding task completed successfully."
+
+        if message and error_code:
+            return f"{message} ({error_code})"
+        if message:
+            return message
+        if error_code:
+            return f"I could not complete that coding request: {error_code}."
+        return "I could not complete that coding request."
 
     @staticmethod
     def _render_system_control_fallback(output: dict[str, Any], *, tool_error: str = "") -> str:

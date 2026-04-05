@@ -34,7 +34,7 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 from agent.planner import PlanStep
 from agent.tool_registry import ToolRegistry
@@ -66,10 +66,20 @@ class ToolExecutor:
         *,
         max_workers: int = 4,
         output_validator: ToolOutputValidator | None = None,
+        event_sink: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> None:
         self.tool_registry = tool_registry
         self.max_workers = max(1, max_workers)
         self.output_validator = output_validator
+        self.event_sink = event_sink
+
+    def _emit_event(self, event_type: str, payload: dict[str, Any]) -> None:
+        if self.event_sink is None:
+            return
+        try:
+            self.event_sink(str(event_type or "").strip(), payload if isinstance(payload, dict) else {})
+        except Exception:
+            return
 
     def execute(self, plan: list[PlanStep]) -> dict[str, dict[str, Any]]:
         """Execute a plan and return tool keyed execution records."""
@@ -241,6 +251,14 @@ class ToolExecutor:
 
     async def _run_step_async(self, step: PlanStep, key: str) -> tuple[str, dict[str, Any]]:
         if not isinstance(step.args, dict):
+            self._emit_event(
+                "tool_invalid_args",
+                {
+                    "result_key": key,
+                    "tool": str(step.tool or ""),
+                    "reason": "planner_args_not_object",
+                },
+            )
             record = ExecutionRecord(
                 tool=step.tool,
                 args={},
@@ -255,6 +273,13 @@ class ToolExecutor:
 
         definition = self.tool_registry.get(step.tool)
         if definition is None:
+            self._emit_event(
+                "tool_unknown",
+                {
+                    "result_key": key,
+                    "tool": str(step.tool or ""),
+                },
+            )
             record = ExecutionRecord(
                 tool=step.tool,
                 args=step.args,
@@ -273,8 +298,25 @@ class ToolExecutor:
         last_output: Any = None
         attempts_used = 0
 
+        self._emit_event(
+            "tool_invoked",
+            {
+                "result_key": key,
+                "tool": str(step.tool or ""),
+                "timeout_seconds": float(definition.timeout_seconds),
+            },
+        )
+
         for attempt in (1, 2):
             attempts_used = attempt
+            self._emit_event(
+                "tool_attempt_started",
+                {
+                    "result_key": key,
+                    "tool": str(step.tool or ""),
+                    "attempt": attempt,
+                },
+            )
             try:
                 result = await asyncio.wait_for(
                     asyncio.to_thread(definition.fn, attempt_args),
@@ -288,6 +330,15 @@ class ToolExecutor:
                     validation = self.output_validator.validate_tool_output(step.tool, attempt_args, result)
                     if not validation.valid:
                         last_error = validation.reason
+                        self._emit_event(
+                            "tool_attempt_validation_failed",
+                            {
+                                "result_key": key,
+                                "tool": str(step.tool or ""),
+                                "attempt": attempt,
+                                "reason": str(validation.reason or "invalid_output"),
+                            },
+                        )
                         if attempt == 1:
                             logger.warning("Tool '%s' output invalid (%s); retrying once", step.tool, validation.reason)
                             if validation.corrected_args:
@@ -314,6 +365,15 @@ class ToolExecutor:
                         logger.warning("Tool '%s' reported transient failure (%s); retrying once", step.tool, last_error)
                         continue
 
+                    self._emit_event(
+                        "tool_attempt_failed",
+                        {
+                            "result_key": key,
+                            "tool": str(step.tool or ""),
+                            "attempt": attempt,
+                            "reason": str(last_error or "tool_reported_failure"),
+                        },
+                    )
                     record = ExecutionRecord(
                         tool=step.tool,
                         args=attempt_args,
@@ -329,6 +389,16 @@ class ToolExecutor:
                             validated=validated,
                         ),
                         attempts=attempts_used,
+                    )
+                    self._emit_event(
+                        "tool_failed",
+                        {
+                            "result_key": key,
+                            "tool": str(step.tool or ""),
+                            "attempts": attempts_used,
+                            "duration_ms": record.duration_ms,
+                            "error": str(record.error or "tool_reported_failure"),
+                        },
                     )
                     return key, self._to_payload(record)
 
@@ -348,15 +418,43 @@ class ToolExecutor:
                     ),
                     attempts=attempts_used,
                 )
+                self._emit_event(
+                    "tool_completed",
+                    {
+                        "result_key": key,
+                        "tool": str(step.tool or ""),
+                        "attempts": attempts_used,
+                        "duration_ms": record.duration_ms,
+                        "confidence": str(record.confidence or ""),
+                    },
+                )
                 return key, self._to_payload(record)
             except asyncio.TimeoutError:
                 last_error = f"Timed out after {definition.timeout_seconds}s"
+                self._emit_event(
+                    "tool_attempt_timeout",
+                    {
+                        "result_key": key,
+                        "tool": str(step.tool or ""),
+                        "attempt": attempt,
+                        "reason": str(last_error),
+                    },
+                )
                 if attempt == 1:
                     logger.warning("Tool '%s' timed out; retrying once", step.tool)
                     continue
             except Exception as exc:
                 logger.exception("Tool '%s' failed", step.tool)
                 last_error = str(exc)
+                self._emit_event(
+                    "tool_attempt_exception",
+                    {
+                        "result_key": key,
+                        "tool": str(step.tool or ""),
+                        "attempt": attempt,
+                        "reason": str(last_error),
+                    },
+                )
                 if attempt == 1:
                     logger.warning("Tool '%s' raised error; retrying once", step.tool)
                     continue
@@ -370,6 +468,16 @@ class ToolExecutor:
             duration_ms=int((time.perf_counter() - started_total) * 1000),
             confidence="low",
             attempts=attempts_used,
+        )
+        self._emit_event(
+            "tool_failed",
+            {
+                "result_key": key,
+                "tool": str(step.tool or ""),
+                "attempts": attempts_used,
+                "duration_ms": record.duration_ms,
+                "error": str(record.error or "tool_failed_after_retry"),
+            },
         )
         return key, self._to_payload(record)
 
