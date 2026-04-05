@@ -7,12 +7,12 @@
 #    Voice Engine Package Initializer
 #
 #    - Exports TTS and STT components for the JARVIS voice interface.
-#    - RealtimePiperTTS: turn-based text-to-speech with Piper backend.
+#    - EdgeNeuralTTS: turn-based text-to-speech with Edge neural voices.
 #    - STT module: speech-to-text for voice input processing.
 #    - Voice pipeline: mic capture -> STT -> runtime -> TTS -> speaker.
 #    - Turn management with monotonic IDs for interruption safety.
 #    - Markdown stripping in the TTS preparation stage.
-#    - Configurable voice model download from HuggingFace.
+#    - Configurable voice settings from environment variables.
 #    - Designed for real-time conversational voice interaction.
 #
 # Author: Deepak Rakshit
