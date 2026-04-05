@@ -59,6 +59,7 @@ All AI-generated code must satisfy these requirements before acceptance:
 | Guardrail | Requirement |
 |---|---|
 | **Determinism** | Deterministic tool functions must remain free of hidden LLM calls |
+| **Bounded AI orchestration** | AI-assisted services (document reasoning / coding assist) must use explicit prompts, schema validation, and safe fallback behavior |
 | **Live data integrity** | Real-time queries must use verifiable external sources — never LLM training data |
 | **Connectivity diagnostics** | Must remain deterministic and probe-backed — not inferred |
 | **No fabrication** | Weather, IP, system data must come from live APIs only |

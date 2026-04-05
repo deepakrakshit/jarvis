@@ -183,6 +183,33 @@ python -c "import fitz; import pdfplumber; import docx; import paddleocr; print(
 
 ---
 
+## 🚫 WhatsApp / Social App Automation Removed
+
+**Symptoms:** Asking JARVIS to send WhatsApp/Telegram/Instagram messages returns unsupported or no-op behavior.
+
+**Cause:** Dedicated social/app interaction automation tooling was removed from the active registry.
+
+**Expected behavior:** These requests are no longer executed by a dedicated social automation service.
+
+**What to use instead:**
+1. Use direct desktop automation commands through `computer_control` workflows
+2. Perform sensitive contact/message actions manually in the app
+
+---
+
+## 💻 Command Execution Blocked
+
+**Symptoms:** A terminal command request is refused with a blocked/safety error.
+
+**Cause:** `cmd_control` blocks destructive command patterns and unsafe shell control-token chains.
+
+**Fixes:**
+1. Use safer, scoped commands without chained control operators
+2. Run commands in a project-local working directory
+3. If needed, break one complex command into smaller explicit steps
+
+---
+
 ## 🌐 Connectivity Check Gives Wrong Response Type
 
 **Symptoms:** `check internet connectivity` triggers search-policy feedback ("Understood. I will verify...") instead of a probe result.

@@ -7,7 +7,7 @@
 <br/>
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![Version](https://img.shields.io/badge/Version-v1.7.0-00C853?style=for-the-badge&logo=github&logoColor=white)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-v1.8.0-00C853?style=for-the-badge&logo=github&logoColor=white)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F7C948?style=for-the-badge)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Active-00C853?style=for-the-badge&logo=checkmarx&logoColor=white)](.)
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)](.)
@@ -20,7 +20,7 @@
 [![AI](https://img.shields.io/badge/LLM-Gemini%203.1%20%2B%202.5-7C3AED?style=flat-square&logoColor=white)](.)
 [![Vision](https://img.shields.io/badge/Vision-Gemini%202.5%20Flash-0EA5E9?style=flat-square&logoColor=white)](.)
 [![OCR](https://img.shields.io/badge/OCR-PaddleOCR-0052CC?style=flat-square&logo=paddlepaddle&logoColor=white)](.)
-[![TTS](https://img.shields.io/badge/TTS-Gemini%20Voice%20flash--lite-10B981?style=flat-square)](.)
+[![TTS](https://img.shields.io/badge/TTS-Edge%20Neural%20Voices-10B981?style=flat-square)](.)
 [![Search](https://img.shields.io/badge/Search-ai.google.dev/gemini-api/docs/grounding-F97316?style=flat-square)](.)
 [![Weather](https://img.shields.io/badge/Weather-Open--Meteo-06B6D4?style=flat-square)](.)
 [![Cache](https://img.shields.io/badge/Cache-SQLite%20%2B%20In--Memory-003B57?style=flat-square&logo=sqlite&logoColor=white)](.)
@@ -75,7 +75,7 @@ At its core, JARVIS combines:
 - **⚡ Sub-millisecond local routing** for greetings, identity, and conversational turns
 - **🧠 A multi-step agent loop** (Plan → Validate → Execute → Synthesize) for tool-backed queries
 - **📄 A hybrid document intelligence pipeline** fusing text extraction, OCR, and LLM vision
-- **🎤 Real-time, streaming voice synthesis** via Gemini voice with chunk-level playback
+- **🎤 Real-time, streaming voice synthesis** via Edge neural TTS (`edge-tts`) with interruption-safe playback
 - **🖥️ A pywebview desktop GUI** rendered through a Three.js adaptive plasma sphere with live telemetry
 
 Every module enforces its own reliability contract. No hallucinated real-time data. No fake success confirmations. No persona drift.
@@ -96,7 +96,7 @@ Every module enforces its own reliability contract. No hallucinated real-time da
 | ⚖️ **Multi-Doc Compare** | Pricing, risk, and feature comparison across multiple documents simultaneously |
 | 👁️ **Screen Intelligence** | Screen/camera capture with structured analysis, object tracking, and latest-frame recall |
 | 🧩 **Computer Automation** | Browser/UI task execution via `computer_control` autonomous action plans |
-| 🎤 **Realtime TTS** | Gemini voice synthesis using `gemini-2.5-flash-lite` |
+| 🎤 **Realtime TTS** | Edge neural voice synthesis (`edge-tts`) with interruption-safe playback |
 | 🖥️ **App Control** | Open/close desktop apps with Start Menu indexing, fuzzy resolution, OS verification |
 | 🔊 **System Control** | Volume · Brightness · Window management · Desktop control · Screen lock |
 | 🌍 **Network Diagnostics** | Public IP · IP-based location · Connectivity probes · Speedtest |
@@ -122,7 +122,7 @@ flowchart TD
     F --> G["⚙️ Executor\nAsync / Parallel"]
     G --> H[("🔧 Tools\nWeather · Search · Screen\nSystem · Document · Automation")]
     H --> I["🔬 Synthesizer\nRelevance Filter"]
-    B -->|"General LLM query"| J["💬 Gemini Stream\ngemini-2.5-flash"]
+    B -->|"General LLM query"| J["💬 Gemini Stream\ngemini-3.1-flash-lite-preview"]
     I --> K["🎭 Personality +\nIdentity Guardrails"]
     J --> K
     C --> K
@@ -184,13 +184,13 @@ flowchart TD
 | Layer | Technology | Role |
 |---|---|---|
 | **LLM Inference** | ![Gemini](https://img.shields.io/badge/Gemini-F55036?logo=Gemini&logoColor=white&style=flat-square) `gemini-3.1-flash-lite-preview` | Planner · Synthesizer · Fast responses |
-| **Deep Reasoning** | ![Gemini](https://img.shields.io/badge/Gemini-F55036?logo=Gemini&logoColor=white&style=flat-square) `gemini-3.1-flash-lite-preview` | Document reasoning · Complex analysis |
-| **Vision** | ![Gemini](https://img.shields.io/badge/Gemini-F55036?logo=Gemini&logoColor=white&style=flat-square) `gemini-3.1-flash-lite-preview` | Document image extraction |
+| **Deep Reasoning** | ![Gemini](https://img.shields.io/badge/Gemini-F55036?logo=Gemini&logoColor=white&style=flat-square) `gemini-2.5-flash` | Document reasoning · Complex analysis |
+| **Vision** | ![Gemini](https://img.shields.io/badge/Gemini-F55036?logo=Gemini&logoColor=white&style=flat-square) `gemini-2.5-flash` | Document image extraction |
 | **OCR** | ![PaddleOCR](https://img.shields.io/badge/PaddleOCR-0052CC?logo=paddlepaddle&logoColor=white&style=flat-square) | Scanned PDFs · Images |
 | **PDF Parsing** | ![PyMuPDF](https://img.shields.io/badge/PyMuPDF-003B57?style=flat-square) + pdfplumber | Text + table extraction |
 | **Web Search** | ai.google.dev/gemini-api/docs/grounding | Live web + news evidence |
 | **Weather** | Open-Meteo | Current + daily forecast |
-| **TTS** | Gemini Voice (flash-lite) | Streaming voice synthesis |
+| **TTS** | edge-tts + PyAudio | Edge neural voice synthesis and playback |
 | **Desktop UI** | ![Three.js](https://img.shields.io/badge/Three.js-000000?logo=threedotjs&logoColor=white&style=flat-square) + pywebview | Plasma core GUI |
 | **Cache** | ![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white&style=flat-square) + In-Memory LRU | Document intelligence cache |
 | **Memory** | JSON-backed MemoryStore | Persistent user context |
@@ -241,7 +241,7 @@ Open `.env` and set your keys:
 ```bash
 GEMINI_API_KEY=your_gemini_api_key       # Required — get it free at console.ai.google.dev
 GEMINI_SEARCH_MODEL=gemini-2.5-flash     # Optional override for grounded search model
-HF_TOKEN=your_huggingface_token      # Optional — for voice model auto-download
+HF_TOKEN=your_huggingface_token          # Optional — used for optional model/service workflows
 ```
 
 ### 5 · Launch
@@ -250,7 +250,7 @@ HF_TOKEN=your_huggingface_token      # Optional — for voice model auto-downloa
 python jarvis.py
 ```
 
-> **That's it.** Voice model files are auto-downloaded on first run if `HF_TOKEN` is set. The plasma UI opens, microphone connects, and JARVIS is ready.
+> **That's it.** The plasma UI opens, microphone connects, and JARVIS is ready.
 
 ---
 
@@ -278,7 +278,7 @@ python jarvis.py
 
 | Variable | Default | Description |
 |---|---|---|
-| `TTS_CHUNK_CHARS` | `42` | Characters per TTS chunk |
+| `TTS_CHUNK_CHARS` | `28` | Characters per TTS chunk |
 | `TTS_FIRST_CHUNK_DELAY` | `0.00` | Pre-speech delay (seconds) |
 | `TTS_FRAMES_PER_BUFFER` | `1024` | PyAudio buffer size |
 | `TTS_PLAYOUT_CHUNK_SIZE` | `2048` | Audio playout chunk size |
@@ -346,7 +346,23 @@ jarvis/
 │   ├── humor.py            # Contextual one-liner engine
 │   └── time_utils.py       # Time-of-day utilities
 │
-├── services/               # Deterministic tool implementations
+├── services/               # Tool and domain service implementations
+│   ├── actions/            # Agent-exposed tool actions
+│   │   ├── app_control.py  # App open/close with OS verification
+│   │   ├── coding_assist.py      # Project scaffolding + run orchestration
+│   │   ├── file_controller.py    # Safe file/folder operations
+│   │   ├── computer_control.py   # Desktop/browser automation actions
+│   │   └── screen_processor.py   # Screen/camera capture + analysis
+│   ├── system/             # System-level command/services
+│   │   ├── cmd_control.py         # Guarded shell command execution
+│   │   ├── system_service.py      # Unified system control facade
+│   │   ├── system_validator.py    # Action + bounds validation policies
+│   │   ├── system_models.py       # Canonical action model definitions
+│   │   ├── volume_control.py      # Volume operations + keyboard fallback
+│   │   ├── brightness_control.py  # Brightness operations + validation
+│   │   ├── window_control.py      # Focus/minimize/restore/close window actions
+│   │   ├── desktop_control.py     # Show desktop + desktop state operations
+│   │   └── shortcut_control.py    # Safe key-combo shortcuts
 │   ├── weather_service.py  # Open-Meteo weather + forecast
 │   ├── network_service.py  # IP · connectivity · speedtest · status
 │   ├── search_service.py   # Gemini Grounding web + news search
@@ -360,12 +376,6 @@ jarvis/
 │   │   ├── qa_engine.py    # Retrieval-backed Q&A + multi-doc compare
 │   │   ├── cache_store.py  # SQLite + in-memory LRU cache
 │   │   └── document_service.py  # Top-level facade
-│   └── system/             # OS-level controls
-│       ├── app_control.py  # App open/close with OS verification
-│       ├── system_service.py    # Unified system control facade
-│       ├── volume_control.py    # pycaw + keyboard fallback
-│       ├── brightness_control.py
-│       └── window_control.py
 │
 ├── frontend/               # Desktop UI (Three.js plasma core)
 │   ├── index.html          # HUD layout
@@ -381,9 +391,9 @@ jarvis/
 │   └── store.py            # Thread-safe JSON memory store
 │
 ├── voice/                  # Speech subsystem
-│   └── tts.py              # Gemini Voice (flash-lite) streaming engine
+│   └── tts.py              # Edge neural TTS engine with interruption safety
 │
-├── tests/stress/           # 20+ stress test suites
+├── tests/stress/           # Stress test suites
 ├── docs/                   # Extended documentation
 ├── utils/                  # Shared utilities
 └── jarvis.py               # Entry point
@@ -400,7 +410,7 @@ jarvis/
 | ✅ | Hybrid document pipeline: text + OCR + vision + fusion |
 | ✅ | Multi-document comparison with evidence citations |
 | ✅ | Retrieval-first document Q&A |
-| ✅ | Real-time Gemini voice with streaming chunks |
+| ✅ | Edge Neural TTS with interruption-safe playback |
 | ✅ | App control with fuzzy resolution + OS verification |
 | ✅ | System control: volume · brightness · windows · desktop |
 | ✅ | Three.js adaptive plasma core UI with live telemetry |

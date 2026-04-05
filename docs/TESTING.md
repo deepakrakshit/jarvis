@@ -3,7 +3,7 @@
 [![Header](https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=2,3,30&height=160&section=header&text=Testing%20Guide&fontSize=44&fontColor=ffffff&animation=twinkling&fontAlignY=50)](.)
 
 [![Testing](https://img.shields.io/badge/Testing-Stress%20Ready-F55036?style=for-the-badge)](.)
-[![Stress Suite](https://img.shields.io/badge/Stress%20Suite-20%2B%20Test%20Files-7C3AED?style=for-the-badge)](.)
+[![Stress Suite](https://img.shields.io/badge/Stress%20Suite-Comprehensive-7C3AED?style=for-the-badge)](.)
 [![Validation](https://img.shields.io/badge/Validation-Mandatory-00C853?style=for-the-badge)](.)
 
 </div>
@@ -38,7 +38,7 @@ This catches import errors, syntax mistakes, and broken module boundaries before
 python -m unittest discover -s tests/stress -p "test_*.py" -v
 ```
 
-All 20+ test files run. Expected output: zero failures, zero errors.
+All stress test files run. Expected output: zero failures, zero errors.
 
 ---
 
@@ -69,6 +69,12 @@ All 20+ test files run. Expected output: zero failures, zero errors.
 | `test_vision_model_selection.py` | Model chain preserved · `:free` suffixes rejected · No duplicates |
 | `test_volume_control.py` | Keyboard fallback works when pycaw + nircmd unavailable |
 | `test_weather_service_forecast.py` | Forecast uses daily data (not current) · Rain probability correct |
+| `test_file_controller.py` | Workspace boundary safety · bulk file generation · content-filter moves · open-path resolution |
+| `test_cmd_control.py` | Command guardrails · blocked token chains · cwd boundary enforcement · env redaction |
+| `test_coding_assist.py` | Project scaffolding · run-file/run-project orchestration · dependency comparison |
+| `test_agent_observability.py` | Agent loop event emission lifecycle and planner route telemetry |
+| `test_executor_observability.py` | Executor event sink behavior across success/failure/unknown-tool flows |
+| `test_browser_automation.py` | Browser automation placeholder module presence for suite completeness |
 
 ---
 

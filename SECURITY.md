@@ -85,6 +85,14 @@ These components receive heightened scrutiny in all reviews:
 - The synthesizer never upgrades tool errors into claimed successes
 - Tool functions are deterministic and stateless — no hidden LLM calls
 
+### 💻 Command Execution Safety (`cmd_control`)
+
+- Command execution is restricted to an explicit allowlisted shell set
+- Dangerous command families and unsafe control-token chains are blocked before execution
+- Working directory is boundary-checked against workspace policy
+- Timeouts and output truncation are enforced on every command run
+- Sensitive environment values are redacted from returned command output
+
 ### 📡 External API Responses
 
 - API responses are parsed defensively — unexpected shapes return safe fallbacks

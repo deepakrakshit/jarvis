@@ -203,6 +203,41 @@
 
 ---
 
+## 🧱 Coding Assist
+
+| Command | What It Does |
+|---|---|
+| `create a project named Calculator in python` | Creates a scaffolded project in `Projects/` |
+| `create a fastapi project named AuthService` | Creates a FastAPI service scaffold |
+| `open the calculator project folder and run the project in terminal` | Resolves and runs project startup command |
+| `run main.py in terminal` | Runs a specific file with inferred runtime |
+| `compare dependencies in requirements and setup` | Compares dependency lists and reports mismatches |
+
+---
+
+## 📂 File Controller
+
+| Command | What It Does |
+|---|---|
+| `create 50 text files in folder StressTest with random content` | Bulk file generation via `create_random_text_files` |
+| `create 100 text files with exactly 1024 characters each` | Exact-size random file generation |
+| `move files containing z to Filtered subfolder` | Content-filtered move workflow |
+| `open downloads folder` | Opens the resolved folder path |
+| `open "C:\\path\\to\\file.txt"` | Opens exact file path |
+
+---
+
+## 💻 Command Control
+
+| Command | What It Does |
+|---|---|
+| `run command "python --version"` | Runs guarded shell command in workspace |
+| `run command "npm test" in terminal` | Executes command with timeout and validation |
+
+`cmd_control` blocks destructive command families and unsafe shell control-token chains.
+
+---
+
 ## 🔐 System Actions
 
 | Command | What It Does |
@@ -211,6 +246,14 @@
 | `lock workstation` | Same |
 
 > **Restricted:** `sleep`, `shutdown`, `restart` are blocked for safety.
+
+---
+
+## 🚫 Removed Capability
+
+Dedicated social/app interaction automation (WhatsApp/Telegram contact message/call workflows) is removed from the active toolset.
+
+Requests such as `send a message to X on whatsapp` are no longer executed by a dedicated social automation service.
 
 ---
 
@@ -247,7 +290,6 @@
 | `weather without using tools` | Tool-forbidden real-time requests are refused |
 | `shutdown` | Blocked system action |
 | `restart` | Blocked system action |
-| `delete files` | Blocked system action |
 
 ---
 

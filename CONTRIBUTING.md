@@ -80,8 +80,9 @@ git checkout -b feat/your-feature-name
 ```
 core/         →  Orchestration, routing policy, settings
 agent/        →  Planning, validation, execution, synthesis
-services/     →  Deterministic tools and external integrations
-services/document/  →  Document intelligence pipeline only
+services/     →  Tool implementations and external integrations
+services/document/  →  Document intelligence pipeline
+services/actions/coding_assist.py → Bounded coding/scaffolding orchestration
 interface/    →  CLI / GUI bridge adapters
 frontend/     →  Static assets and UI rendering only
 voice/        →  Speech pipeline internals
@@ -92,13 +93,14 @@ memory/       →  Session and persistent context
 
 - ✅ Keep every module **single-responsibility**
 - ✅ Keep **deterministic tools deterministic** — no hidden LLM calls inside tool functions
+- ✅ If a service intentionally uses LLM reasoning (document reasoning/coding assist), keep prompts explicit and outputs schema-validated
 - ✅ Keep **file selection system-controlled** — the LLM never triggers the file picker
 - ✅ Validate tool outputs before synthesis — never assume a tool succeeded
 - ✅ Handle errors gracefully with **human-readable fallbacks** — no raw dict/payload leakage in responses
 - ✅ Add `.env` documentation when introducing new environment variables
 - ❌ Do not bypass the validator in `agent/validator.py`
 - ❌ Do not hardcode real-time data (IP addresses, weather values, prices)
-- ❌ Do not add state to `services/` tools — they must be pure and stateless
+- ❌ Do not add hidden global mutable state to `services/` tools
 
 ---
 

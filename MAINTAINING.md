@@ -30,8 +30,9 @@ Each module has a single, strict responsibility. Violations of these boundaries 
 | `core/runtime.py` | Intent routing + Gemini streaming | Call tool implementations directly |
 | `core/settings.py` | AppConfig + env loading | Contain runtime state |
 | `agent/` | Plan → Validate → Execute → Synthesize | Make direct service calls |
-| `services/` | Deterministic tool implementations | Call LLMs (except `document/` reasoning stages) |
+| `services/` | Tool implementations and external integrations | Introduce hidden global mutable state |
 | `services/document/` | Full document pipeline | Trigger file picker UI |
+| `services/actions/coding_assist.py` | Bounded coding/scaffolding orchestration | Bypass schema validation or safe fallbacks |
 | `interface/` | Python ↔ UI bridge adapters | Contain routing or agent logic |
 | `frontend/` | Three.js GUI + HTML/CSS/JS | Import Python modules |
 | `voice/` | TTS engine + queue management | Make network calls |
@@ -147,6 +148,9 @@ python -m unittest discover -s tests/stress -p "test_*.py" -v
 | `max volume` | `set_volume` 100 via system control |
 | `min brightness` | `set_brightness` 0 via system control |
 | `open chrome` + `close it` | Close uses remembered app name |
+| `create a project named X in python` | `coding_assist` scaffolds under `Projects/` |
+| `create 50 random text files in folder Y` | `file_controller` bulk generation succeeds with expected counts |
+| `run command "python --version"` | `cmd_control` executes safely with structured output |
 | Identity query: `who are you` | JARVIS identity — no persona drift |
 
 ### ✅ Safety Checks

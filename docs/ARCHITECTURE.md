@@ -35,13 +35,13 @@ flowchart TD
 
     C -->|"P30\nSearch / Factual"| F["🌐 Agent Loop\n+ Web Evidence"]
 
-    C -->|"No match"| G["💬 Gemini Stream\ngemini-2.5-flash\nTemperature 0.3"]
+    C -->|"No match"| G["💬 Gemini Stream\ngemini-3.1-flash-lite-preview\nTemperature 0.3"]
 
     E --> H["🎭 Personality Engine\n+ Identity Guardrails"]
     F --> H
     D --> H
     G --> H
-    H --> I(["🔊 Final Response\n+ Gemini voice"])
+    H --> I(["🔊 Final Response\n+ Edge neural TTS"])
 
     style A fill:#0066ff,color:#fff,stroke:#00e1ff,stroke-width:2px
     style I fill:#0066ff,color:#fff,stroke:#00e1ff,stroke-width:2px
@@ -71,7 +71,7 @@ sequenceDiagram
 
     R->>AL: run(query)
     AL->>PL: plan(query)<br/>(with history & profile)
-    Note over PL: Few-shot JSON Planner<br/>gemini-2.5-flash<br/>Temperature 0<br/>Reasoning 500 chars
+    Note over PL: Few-shot JSON Planner<br/>gemini-3.1-flash-lite-preview<br/>Temperature 0<br/>Reasoning 500 chars
 
     PL-->>AL: PlanDraft {steps, reasoning}
     AL->>AL: _prepare_plan_for_execution()<br/>(inject session location for weather)
@@ -89,7 +89,7 @@ sequenceDiagram
     EX-->>AL: tool_outputs dict
 
     AL->>SY: synthesize(query, tool_outputs)<br/>(with history & profile)
-    Note over SY: Relevance filtering<br/>Identity guardrails<br/>gemini-2.5-flash<br/>Temperature 0.25
+    Note over SY: Relevance filtering<br/>Identity guardrails<br/>gemini-3.1-flash-lite-preview<br/>Temperature 0.25
     SY-->>AL: final response text
 
     AL-->>R: AgentLoopResult {handled, response}
@@ -189,6 +189,21 @@ flowchart TD
 
 ---
 
+## 🧰 Action Toolset (v1.8.0)
+
+The agent-exposed action layer currently includes:
+
+- `services/actions/app_control.py`
+- `services/actions/computer_control.py`
+- `services/actions/screen_processor.py`
+- `services/actions/file_controller.py`
+- `services/actions/coding_assist.py`
+- `services/system/cmd_control.py`
+
+`app_interaction_automation` has been removed from the active toolset and registry.
+
+---
+
 ## 🎤 Voice Pipeline
 
 ```mermaid
@@ -196,9 +211,9 @@ flowchart LR
     A(["Text Response"]) --> B["_first_speech_chunk()\n14–26 chars"]
     B --> C["enqueue_text()\n+ turn_id check"]
     C --> D["TTS Worker Thread\nQueue consumer"]
-    D --> E["Gemini Voice API\ngenerateContent AUDIO"]
-    E --> F["Decode inline audio payload"]
-    F --> G["Platform playback\n(winsound on Windows)"]
+    D --> E["Edge Neural TTS\n(edge-tts stream/synthesize)"]
+    E --> F["Raw PCM streaming\nor buffered audio fallback"]
+    F --> G["Platform playback\n(PyAudio / MCI fallback)"]
     G --> H(["🔊 Speaker Output"])
 
     A --> I["_next_speech_chunk()\n28–36 chars on boundaries"]

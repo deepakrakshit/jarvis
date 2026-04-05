@@ -27,6 +27,55 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.8.0] — 2026-04-04 — Tooling Expansion, Voice Migration, and Reliability Hardening
+
+### Added
+- **Coding Assist toolchain**: Added `coding_assist` workflows for project scaffolding, multi-file generation, run-file/run-project orchestration, request-to-command resolution, and dependency comparison.
+- **Enterprise File Controller**: Added `file_controller` with guarded file/folder operations, bulk random text generation, content-filtered moves, open-path resolution, and protected delete boundaries.
+- **Guarded Command Execution**: Added `cmd_control` with blocked pattern/token policy, workspace-bound execution, timeout enforcement, output truncation, and sensitive value redaction.
+- **Autonomy observability layer**: Added structured JSONL event recording for agent/executor lifecycle telemetry via `agent/observability.py` and runtime event sink wiring.
+- **Expanded stress coverage**: Added stress suites for coding assist, file controller, cmd control, agent observability, executor observability, and additional fallback/contract validations.
+
+### Changed
+- **Voice runtime migrated**: Replaced legacy runtime TTS path with Edge neural TTS (`EdgeNeuralTTS`) including turn-safe interruption, raw PCM streaming path, and buffered/MCI fallback behavior.
+- **App control placement standardized**: App lifecycle control now lives under `services/actions/app_control.py` and is used consistently by registry/tool paths.
+- **Planner/tool guidance expanded**: Planner guidance and few-shot coverage now include coding/file/command workflows with stronger deterministic-tool selection behavior.
+- **Executor instrumentation**: Tool executor now emits rich attempt/result events (`tool_invoked`, attempt lifecycle, timeout/exception/failure/completed) for runtime observability.
+- **Synthesizer resilience improved**: Added deterministic fallback renderers for file-controller/cmd-control/coding-assist outputs and duplicate-line suppression in fallback synthesis.
+- **Validator contracts expanded**: Tool output validator now enforces structured output contracts for `file_controller` and `cmd_control`.
+- **Screen processor enriched**: Added AI visual summary generation path and summary override integration for immediate screen/camera analysis responses.
+- **Runtime document routing improved**: Added explicit folder/path target extraction for document flows and directory-wide supported-file expansion before analysis.
+
+### Removed
+- **App interaction automation feature removed**: Removed `services/actions/app_interaction_automation.py`, removed its stress suite, and fully removed planner/registry/action exports and integrations for `human_app_automation`.
+
+---
+
+## [1.7.1] — 2026-04-04 — Codebase Documentation Standardization
+
+JARVIS v1.7.1 - Codebase Documentation Standardization
+
+This release introduces a full codebase-wide documentation standardization pass.
+
+### Key Improvements
+
+- Adds structured file-level headers across 80+ modules
+- Establishes consistent metadata including descriptions and responsibilities
+- Improves maintainability, readability, and onboarding experience
+
+### Scope
+
+- Agent, core, services, interface, and application layers updated
+- No functional or runtime behavior changes
+
+### Impact
+
+This update strengthens long-term scalability and codebase clarity, aligning JARVIS with production-grade engineering standards.
+
+Version: 1.7.1
+
+---
+
 ## [1.7.0] — 2026-04-03 — Autonomous Vision & Reliability Upgrade
 
 ### Added

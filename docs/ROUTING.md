@@ -95,6 +95,10 @@ flowchart TD
     style Z3 fill:#374151,color:#fff,stroke:none
 ```
 
+Current planner/agent tool routing includes `coding_assist`, `file_controller`, `cmd_control`, `app_control`, `system_control`, `computer_settings`, `computer_control`, `screen_process`, `document`, `memory_save`, and network/weather/status tools.
+
+`human_app_automation` / `app_interaction_automation` is no longer part of the active routing graph.
+
 ---
 
 ## 📄 Document Routing — Detailed
@@ -167,6 +171,7 @@ These rules prevent routing ambiguity across similar-sounding intents:
 | `2025 season` → wrong sport | `AMBIGUOUS_SEASON_RE` catches bare season queries; asks for sport context |
 | `close it` → no target | `AppControlService` falls back to `memory.get('last_opened_app')` |
 | `weather again` → weather without city | `TextCleaner.had_again` injects `memory.get('last_city')` before routing |
+| Legacy social app automation request | No dedicated social automation tool; planner uses supported generic tools only |
 
 ---
 
