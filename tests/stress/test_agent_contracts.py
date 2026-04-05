@@ -1,3 +1,18 @@
+# ==============================================================================
+# File: tests/stress/test_agent_contracts.py
+# Project: J.A.R.V.I.S. - Just A Rather Very Intelligent System
+# ==============================================================================
+#
+# Description:
+#    Core module for test_agent_contracts functionalities.
+#
+# Author: Deepak Rakshit
+# Repository: https://github.com/deepakrakshit/jarvis
+#
+# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
+# See LICENSE file in the project root for license information.
+# ==============================================================================
+
 from __future__ import annotations
 
 import unittest
@@ -107,6 +122,127 @@ class AgentContractsStressTest(unittest.TestCase):
         self.assertEqual(prepared[0].args.get("goal"), "search for cat videos on YouTube")
         self.assertEqual(prepared[1].tool, "document")
         self.assertEqual(prepared[1].args.get("file_path"), "__active_document__")
+
+    def test_direct_coding_step_extracts_project_name(self) -> None:
+        step = AgentLoop._direct_coding_assist_step(
+            "I want you to create a project name calculator. It should be production grade and modular."
+        )
+        self.assertIsNotNone(step)
+        assert step is not None
+        self.assertEqual(step.tool, "coding_assist")
+        self.assertEqual(step.args.get("action"), "create_project")
+        self.assertEqual(step.args.get("name"), "calculator")
+        self.assertEqual(step.args.get("target_dir"), "Projects")
+        self.assertTrue(bool(step.args.get("open_after_create")))
+
+    def test_direct_coding_step_ignores_from_scratch_suffix_in_name(self) -> None:
+        step = AgentLoop._direct_coding_assist_step(
+            "Create the project named Calculator from the Scratch again."
+        )
+        self.assertIsNotNone(step)
+        assert step is not None
+        self.assertEqual(step.tool, "coding_assist")
+        self.assertEqual(step.args.get("action"), "create_project")
+        self.assertEqual(step.args.get("name"), "Calculator")
+
+    def test_direct_coding_step_supports_named_as_phrase(self) -> None:
+        step = AgentLoop._direct_coding_assist_step(
+            "create a prodcution grade project named as CALCULATOR_"
+        )
+        self.assertIsNotNone(step)
+        assert step is not None
+        self.assertEqual(step.tool, "coding_assist")
+        self.assertEqual(step.args.get("action"), "create_project")
+        self.assertEqual(step.args.get("name"), "CALCULATOR_")
+
+    def test_direct_coding_step_routes_run_request(self) -> None:
+        query = "Open the Calculator project folder and run the project in terminal"
+        step = AgentLoop._direct_coding_assist_step(query)
+        self.assertIsNotNone(step)
+        assert step is not None
+        self.assertEqual(step.tool, "coding_assist")
+        self.assertEqual(step.args.get("action"), "run_from_request")
+        self.assertEqual(step.args.get("request"), query)
+        self.assertTrue(bool(step.args.get("open_folder")))
+
+    def test_direct_coding_step_does_not_hijack_app_launch(self) -> None:
+        step = AgentLoop._direct_coding_assist_step("start calculator app")
+        self.assertIsNone(step)
+
+    def test_direct_file_step_extracts_bulk_generation_intent(self) -> None:
+        config = AppConfig.from_env(".env")
+        registry = self._registry()
+        loop = AgentLoop(
+            planner=Planner(config, registry),
+            executor=ToolExecutor(registry),
+            synthesizer=Synthesizer(config),
+            validator=PlanValidator(registry),
+        )
+
+        step = loop._direct_file_controller_step(
+            "Create 50 text files in a folder named 'StressTest' with random content in each."
+        )
+        self.assertIsNotNone(step)
+        assert step is not None
+        self.assertEqual(step.tool, "file_controller")
+        self.assertEqual(step.args.get("action"), "create_random_text_files")
+        self.assertEqual(step.args.get("path"), "StressTest")
+        self.assertEqual(step.args.get("count"), 50)
+        self.assertTrue(bool(step.args.get("fill_to_count")))
+
+    def test_direct_file_step_resolves_create_rest_followup(self) -> None:
+        config = AppConfig.from_env(".env")
+        registry = self._registry()
+        loop = AgentLoop(
+            planner=Planner(config, registry),
+            executor=ToolExecutor(registry),
+            synthesizer=Synthesizer(config),
+            validator=PlanValidator(registry),
+        )
+
+        loop.set_conversation_context(
+            conversation_history=[
+                {
+                    "role": "user",
+                    "content": "Create 50 text files in a folder named StressTest with random content in each.",
+                }
+            ]
+        )
+
+        step = loop._direct_file_controller_step("create the rest")
+        self.assertIsNotNone(step)
+        assert step is not None
+        self.assertEqual(step.tool, "file_controller")
+        self.assertEqual(step.args.get("action"), "create_random_text_files")
+        self.assertEqual(step.args.get("path"), "StressTest")
+        self.assertEqual(step.args.get("count"), 50)
+
+    def test_prefer_planner_route_defaults_to_true(self) -> None:
+        self.assertTrue(AgentLoop._prefer_planner_route("Mute volume and set brightness to 10 percent"))
+        self.assertTrue(AgentLoop._prefer_planner_route("Click start and type calendar"))
+
+    def test_prefer_planner_route_keeps_deterministic_shortcuts(self) -> None:
+        self.assertFalse(
+            AgentLoop._prefer_planner_route(
+                "Create 50 text files in a folder named StressTest with random content in each"
+            )
+        )
+        self.assertFalse(
+            AgentLoop._prefer_planner_route(
+                "Create a project named Calculator with modular structure"
+            )
+        )
+
+    def test_prefer_planner_route_for_chained_bulk_file_workflow(self) -> None:
+        query = (
+            "Create 100 random text files in a new directory called StressTest, each with exactly 1024 characters. "
+            "After creating them, find all files containing the letter z and move them to a Filtered subfolder."
+        )
+        self.assertTrue(AgentLoop._prefer_planner_route(query))
+
+    def test_extract_exact_char_count_from_bulk_request(self) -> None:
+        query = "Create 100 random text files in folder StressTest, each with exactly 1024 characters."
+        self.assertEqual(AgentLoop._extract_exact_char_count(query), 1024)
 
     def test_weather_location_match_accepts_city_with_label_suffix(self) -> None:
         validator = ToolOutputValidator()

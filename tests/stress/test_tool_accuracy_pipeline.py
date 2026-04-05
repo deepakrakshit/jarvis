@@ -139,6 +139,49 @@ class ToolAccuracyPipelineTest(unittest.TestCase):
         domains = [service._result_domain(item.link) for item in ranked]
         self.assertEqual(len(set(domains)), 2)
 
+    def test_validator_accepts_file_controller_bulk_contract(self) -> None:
+        validator = ToolOutputValidator()
+        result = validator.validate_tool_output(
+            "file_controller",
+            {},
+            {
+                "status": "success",
+                "action": "create_random_text_files",
+                "success": True,
+                "verified": True,
+                "error": "",
+                "message": "ok",
+                "data": {
+                    "target_count": 50,
+                    "total_available": 50,
+                    "failed_count": 0,
+                    "fill_to_count": True,
+                },
+            },
+        )
+        self.assertTrue(result.valid, result.reason)
+
+    def test_validator_rejects_cmd_success_with_nonzero_exit(self) -> None:
+        validator = ToolOutputValidator()
+        result = validator.validate_tool_output(
+            "cmd_control",
+            {},
+            {
+                "status": "success",
+                "action": "run_command",
+                "success": True,
+                "verified": True,
+                "error": "",
+                "message": "Command executed.",
+                "exit_code": 3,
+                "timed_out": False,
+                "stdout": "",
+                "stderr": "",
+            },
+        )
+        self.assertFalse(result.valid)
+        self.assertEqual(result.reason, "cmd_success_exit_code_mismatch")
+
 
 if __name__ == "__main__":
     unittest.main()

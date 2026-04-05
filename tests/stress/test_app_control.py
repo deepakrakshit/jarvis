@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from services.system.app_control import AppControlService, AppExecutor, AppRecord, AppResolver
+from services.actions.app_control import AppControlService, AppExecutor, AppRecord, AppResolver
 
 
 class _MemoryStub:
@@ -148,7 +148,7 @@ class AppControlStressTest(unittest.TestCase):
                     )
                 ],
             ),
-        ), patch("services.system.app_control.os.name", "nt"), patch("services.system.app_control.psutil", object()), patch.object(
+        ), patch("services.actions.app_control.os.name", "nt"), patch("services.actions.app_control.psutil", object()), patch.object(
             executor,
             "_snapshot_matching_pids",
             return_value=set(),
@@ -188,7 +188,7 @@ class AppControlStressTest(unittest.TestCase):
             ]
         )
 
-        with patch("services.system.app_control.process", None), patch("services.system.app_control.fuzz", None):
+        with patch("services.actions.app_control.process", None), patch("services.actions.app_control.fuzz", None):
             decision = resolver.resolve("visual studio code")
 
         self.assertEqual(decision.status, "resolved")
@@ -197,7 +197,7 @@ class AppControlStressTest(unittest.TestCase):
     def test_executor_does_not_fail_when_fuzzy_is_unavailable(self) -> None:
         executor = AppExecutor(_ResolvedNoFuzzyResolver())  # type: ignore[arg-type]
 
-        with patch("services.system.app_control.os.name", "nt"), patch("services.system.app_control.psutil", object()), patch.object(
+        with patch("services.actions.app_control.os.name", "nt"), patch("services.actions.app_control.psutil", object()), patch.object(
             executor,
             "_open_app",
             return_value={
@@ -212,6 +212,19 @@ class AppControlStressTest(unittest.TestCase):
 
         self.assertEqual(result.get("status"), "success")
         self.assertEqual(result.get("action"), "open")
+
+    def test_open_verification_handles_missing_window_library(self) -> None:
+        resolver = AppResolver(start_apps_loader=lambda: [])
+        executor = AppExecutor(resolver)
+
+        with patch("services.actions.app_control.gw", None), patch.object(
+            executor,
+            "_snapshot_matching_pids",
+            return_value={1234},
+        ):
+            verified = executor._wait_for_open_verification(("chrome",), baseline=set())
+
+        self.assertTrue(verified)
 
     def test_close_it_uses_remembered_app(self) -> None:
         memory = _MemoryStub()

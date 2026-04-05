@@ -66,6 +66,13 @@ class RuntimeInteractionFlowsTest(unittest.TestCase):
         self.assertTrue(runtime._is_document_request("open file picker"))
         self.assertTrue(runtime._is_document_request("open document selector"))
 
+    def test_folder_based_pdf_request_bypasses_picker_flow(self) -> None:
+        runtime = self._runtime_for_compare()
+
+        prompt = "Read all PDF files in the Downloads folder and summarize invoices"
+        self.assertTrue(runtime._is_document_request(prompt))
+        self.assertFalse(runtime._should_use_document_picker_flow(prompt))
+
     def test_location_declaration_only_matcher(self) -> None:
         runtime = self._runtime_minimal()
 

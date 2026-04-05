@@ -35,6 +35,26 @@ class ComputerControlTest(unittest.TestCase):
         self.assertEqual(script[0][0], "open_app_manual")
         self.assertTrue(any(step[0] == "smart_type" for step in script))
 
+    def test_notepad_write_close_shortcut_types_requested_text_and_closes(self) -> None:
+        controller = ComputerController(AppConfig.from_env(".env"), dry_run=True)
+        script = controller._build_shortcut_script(
+            "Open Notepad, write 'Stress Test Successful', and close it.",
+            {},
+        )
+
+        self.assertTrue(script)
+        self.assertEqual(script[0][0], "open_app_manual")
+        typed_steps = [step for step in script if step[0] == "smart_type"]
+        self.assertTrue(typed_steps)
+        self.assertEqual(typed_steps[0][1].get("text"), "Stress Test Successful")
+        self.assertTrue(any(step[0] == "hotkey" and step[1].get("keys") == "alt+f4" for step in script))
+
+    def test_planner_hotkey_validation_accepts_key_alias(self) -> None:
+        controller = ComputerController(AppConfig.from_env(".env"), dry_run=True)
+        is_valid, reason = controller._validate_planner_action("hotkey", {"key": "alt+f4"})
+        self.assertTrue(is_valid)
+        self.assertEqual(reason, "")
+
     def test_autonomous_task_prefers_planner_before_shortcuts(self) -> None:
         controller = ComputerController(AppConfig.from_env(".env"), dry_run=True)
 
