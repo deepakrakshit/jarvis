@@ -276,12 +276,25 @@ python jarvis.py
 
 ### 🎤 Voice Tuning
 
+### 🎙️ Edge Voice Profile
+
 | Variable | Default | Description |
 |---|---|---|
-| `TTS_CHUNK_CHARS` | `28` | Characters per TTS chunk |
+| `EDGE_TTS_VOICE` | `en-GB-RyanNeural` | Default Jarvis voice |
+| `EDGE_TTS_RATE` | `-5%` | Base speaking rate |
+| `EDGE_TTS_PITCH` | `-2Hz` | Base pitch |
+| `EDGE_TTS_VOLUME` | `+0%` | Base output volume |
+| `EDGE_TTS_OUTPUT_FORMAT` | `raw-24khz-16bit-mono-pcm` | Preferred raw stream format; auto-falls back to low-latency ffmpeg decode stream when unsupported by installed `edge-tts` |
+| `EDGE_TTS_EXPRESSIVENESS` | `0` | Prosody variance amount (0 = stable voice profile) |
+
+### ⚡ Runtime TTS Performance
+
+| Variable | Default | Description |
+|---|---|---|
+| `TTS_CHUNK_CHARS` | `34` | Target chars used by runtime chunk heuristics |
 | `TTS_FIRST_CHUNK_DELAY` | `0.00` | Pre-speech delay (seconds) |
-| `TTS_FRAMES_PER_BUFFER` | `1024` | PyAudio buffer size |
-| `TTS_PLAYOUT_CHUNK_SIZE` | `2048` | Audio playout chunk size |
+| `TTS_FRAMES_PER_BUFFER` | `512` | PyAudio output buffer size (smaller = lower latency) |
+| `TTS_PLAYOUT_CHUNK_SIZE` | `1024` | PCM playout chunk size |
 
 ### 📄 Document Performance
 

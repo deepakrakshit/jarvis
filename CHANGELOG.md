@@ -16,6 +16,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- **TTS startup latency reduced**: Added adaptive first-fragment enqueue in runtime for long replies so speech starts earlier.
+- **Edge TTS fallback upgraded**: When installed `edge-tts` lacks explicit `output_format`, runtime now uses low-latency ffmpeg transcode streaming before buffered fallback.
+- **TTS defaults retuned**: Updated low-latency defaults (`TTS_CHUNK_CHARS=34`, `TTS_FRAMES_PER_BUFFER=512`, `TTS_PLAYOUT_CHUNK_SIZE=1024`) and aligned docs/env examples.
+
 ### Planned
 - Plugin tool packs (extensible tool registry)
 - Deeper multi-agent planning strategies

@@ -285,17 +285,26 @@ python -c "import fitz; import pdfplumber; import docx; import paddleocr; print(
 - TTS chunk size too large (audio gap between chunks)
 - PyAudio buffer size mismatch
 - First-chunk delay setting too high
+- Installed `edge-tts` lacks explicit raw output support and `ffmpeg` is missing
 
 **Tuning guide** (`.env`):
 
 | Problem | Tune This |
 |---|---|
-| Long pause before first word | Lower `TTS_CHUNK_CHARS` to 28–35 |
-| Audio gaps mid-sentence | Lower `TTS_CHUNK_CHARS`, raise `TTS_FORCE_FIRST_FRAGMENT_AFTER_WORDS` |
-| Choppy/distorted audio | Raise `TTS_FRAMES_PER_BUFFER` to 2048 or 4096 |
+| Long pause before first word | Ensure `ffmpeg` is installed, keep `TTS_FIRST_CHUNK_DELAY=0.00`, use `TTS_CHUNK_CHARS=30–36` |
+| Audio gaps mid-sentence | Keep `TTS_CHUNK_CHARS=30–36`, keep `TTS_FORCE_FIRST_FRAGMENT_AFTER_WORDS` in `18–26` |
+| Choppy/distorted audio | Raise `TTS_FRAMES_PER_BUFFER` from `512` to `1024` |
 | Response feels slow to start | Set `TTS_FIRST_CHUNK_DELAY=0.00` |
 
 Use the **SKIP** button in the desktop UI to interrupt long responses safely.
+
+Quick environment check:
+
+```bash
+ffmpeg -version
+```
+
+If `ffmpeg` is unavailable, the engine falls back to buffered synthesis which is noticeably slower for long replies.
 
 ---
 

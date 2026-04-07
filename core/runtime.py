@@ -1167,9 +1167,32 @@ class JarvisRuntime:
         if not utterance:
             return False
 
-        # Edge neural voices sound more natural when synthesized as one utterance.
-        # Chunk splitting can introduce a noticeable 2-3s gap between fragments.
-        return self.tts.enqueue_text(utterance, turn_id)
+        # Streaming playback should remain a single utterance to avoid mid-reply breaks.
+        prefers_single = getattr(self.tts, 'prefers_single_utterance', None)
+        if callable(prefers_single):
+            try:
+                if bool(prefers_single()):
+                    return self.tts.enqueue_text(utterance, turn_id)
+            except Exception:
+                pass
+
+        # Keep short replies as one utterance for natural cadence.
+        split_threshold = max(80, int(self.config.tts_chunk_chars) * 2)
+        if len(utterance) < split_threshold:
+            return self.tts.enqueue_text(utterance, turn_id)
+
+        # For long replies, enqueue a short first fragment to reduce time-to-first-audio.
+        first_chunk, remainder = self._first_speech_chunk(utterance)
+        if not first_chunk or not remainder:
+            return self.tts.enqueue_text(utterance, turn_id)
+
+        queued_first = self.tts.enqueue_text(first_chunk, turn_id)
+        if not queued_first:
+            return self.tts.enqueue_text(utterance, turn_id)
+
+        remainder_text = remainder.strip()
+        queued_rest = self.tts.enqueue_text(remainder_text, turn_id) if remainder_text else False
+        return bool(queued_first or queued_rest)
 
     def _respond_local(self, user_text: str, response_text: str, *, persist_user: bool, stream_to_stdout: bool) -> str:
         if self._is_turn_cancelled():

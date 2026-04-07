@@ -212,7 +212,7 @@ flowchart LR
     B --> C["enqueue_text()\n+ turn_id check"]
     C --> D["TTS Worker Thread\nQueue consumer"]
     D --> E["Edge Neural TTS\n(edge-tts stream/synthesize)"]
-    E --> F["Raw PCM streaming\nor buffered audio fallback"]
+    E --> F["Raw PCM streaming\nOR ffmpeg transcode stream\nOR buffered fallback"]
     F --> G["Platform playback\n(PyAudio / MCI fallback)"]
     G --> H(["🔊 Speaker Output"])
 
