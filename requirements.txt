@@ -1,50 +1,54 @@
 # ==============================================================================
 # File: requirements.txt
-# Project: J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# Project: J.A.R.V.I.S. - Just A Rather Very Intelligent System
 # ==============================================================================
 #
-# Description:
-#    Python Dependency Manifest — Runtime Environment Specification
+# Full runtime dependency set for the current Windows release.
+# The list is intentionally minimal at the top-level:
+# - every package below is imported directly by the repository, or
+# - it is pinned explicitly to keep the validated runtime warning-free.
 #
-#    - Pinned dependency list for the JARVIS runtime environment.
-#    - LLM integration: google-genai for Gemini API access.
-#    - TTS: edge-tts + PyAudio for neural voice synthesis/playback.
-#    - System control: pycaw (audio), pyautogui (automation), psutil (metrics).
-#    - GUI: pywebview for desktop window rendering.
-#    - Document processing: PyPDF2, python-docx, Pillow, paddleocr.
-#    - Network: requests, speedtest-cli.
-#    - Fuzzy matching: rapidfuzz for app name resolution.
-#    - Environment: python-dotenv for configuration loading.
+# Validation basis:
+# - clean Python 3.10 Windows virtual environment
+# - `python -m compileall app agent core services interface voice tests`
+# - `python -m unittest discover -s tests/stress -p "test_*.py" -v`
 #
-# Author: Deepak Rakshit
-# Repository: https://github.com/deepakrakshit/jarvis
-#
-# Copyright (c) 2025 Deepak Rakshit. All rights reserved.
-# See LICENSE file in the project root for license information.
+# Native / external requirements that are NOT pip packages:
+# - ffmpeg must be installed and available on PATH for low-latency TTS fallback
+# - Windows is the primary supported platform for GUI / system-control features
 # ==============================================================================
 
-requests
-google-genai
-edge-tts
-PyAudio
-pywebview
-psutil
-pathvalidate
-speedtest-cli
-rapidfuzz
-pycaw
-comtypes
-screen-brightness-control
-pygetwindow
-pyautogui
-pyperclip
-mss
-opencv-python
+# Core HTTP / async runtime
+aiohttp==3.13.3
+certifi==2026.1.4
+chardet==5.2.0
+edge-tts==7.2.7
+google-genai==1.60.0
+requests==2.32.5
+tomli==2.4.0
 
-# Document Analysis Dependencies
-PyMuPDF
-pdfplumber
-python-docx
-paddleocr
-paddlepaddle
-Pillow
+# Voice + desktop UI
+PyAudio==0.2.14
+pywebview==6.1
+
+# Desktop automation / system integration
+comtypes==1.4.15
+mss==10.1.0
+opencv-python==4.13.0.92
+psutil==5.8.0
+PyAutoGUI==0.9.53
+pycaw==20251023
+PyGetWindow==0.0.9
+pyperclip==1.11.0
+rapidfuzz==3.14.3
+screen-brightness-control==0.27.1
+speedtest-cli==2.1.3
+
+# Document / OCR / vision pipeline
+numpy==2.2.6
+paddleocr==3.4.0
+paddlepaddle==3.3.1
+pdfplumber==0.11.9
+Pillow==12.1.1
+PyMuPDF==1.27.1
+python-docx==1.2.0
